@@ -5,7 +5,8 @@
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build && tsc --noEmit -p tsconfig.json"
+    "build": "electron-vite build && tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
   },
   "dependencies": {
     "skinview3d": "3.4.2",
@@ -16,6 +17,7 @@
     "@types/three": "0.156.0",
     "electron": "44.7.0",
     "electron-vite": "6.0.0",
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "vitest": "^5.0.5"
   }
 }

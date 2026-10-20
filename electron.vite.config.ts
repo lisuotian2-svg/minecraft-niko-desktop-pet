@@ -5,6 +5,14 @@ export default defineConfig({
   main: {},
   preload: {},
   renderer: {
-    publicDir: resolve(__dirname, 'public')
+    publicDir: resolve(__dirname, 'public'),
+    build: {
+      rollupOptions: {
+        input: {
+          pet: resolve(__dirname, 'src/renderer/index.html'),
+          settings: resolve(__dirname, 'src/renderer/settings.html')
+        }
+      }
+    }
   }
 })

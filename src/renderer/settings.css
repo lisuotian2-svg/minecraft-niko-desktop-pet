@@ -1,0 +1,52 @@
+:root {
+  color-scheme: light;
+  font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
+  background: #f8f7f5;
+  color: #302d2b;
+}
+
+* { box-sizing: border-box; }
+
+body { margin: 0; }
+
+.settings { padding: 22px 26px; }
+
+header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+h1 { margin: 0; font-size: 20px; font-weight: 600; }
+
+#version { color: #77716d; font-size: 12px; }
+
+.control {
+  display: flex;
+  justify-content: space-between;
+  margin: 18px 0 8px;
+  font-size: 14px;
+}
+
+output { color: #615b57; font-variant-numeric: tabular-nums; }
+
+input[type="range"] { width: 100%; accent-color: #9472b7; }
+
+#status { height: 18px; margin: 14px 0 0; color: #655676; font-size: 12px; }
+
+footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+
+button {
+  min-width: 72px;
+  padding: 7px 14px;
+  border: 1px solid #d2cdc8;
+  border-radius: 6px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.primary { border-color: #8d6caf; background: #8d6caf; color: #fff; }
+button:disabled { opacity: .55; cursor: wait; }
