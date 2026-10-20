@@ -1,0 +1,9 @@
+node_modules/
+.pnpm-store/
+.electron-cache/
+out/
+release/
+artifacts/
+*.log
+
+.scratch*
