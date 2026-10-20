@@ -4,8 +4,11 @@
 
 - Windows 11 x64；PowerShell 7；Node 24；pnpm 11。
 - 项目根：`C:\Users\zgy15\Documents\deepseek-harness\default-workspace\niko-pet-3d`
-- 包管理器只用 **pnpm**，不要用 npm/yarn。
+- 包管理器只用 **pnpm**，不要用 npm/yarn。若 `pnpm add` 报 store 不一致，加 `--store-dir .pnpm-store/v11`。
 - 这是本地自用项目，不要发布、不要上传、不要改全局配置、不要动 `%APPDATA%\.minecraft` 和 `~/.dsh`。
+- **Electron 已锁定 44.7.0**：本机 44.9.1 在 Windows 11 26200 上启动即挂起（`app.whenReady` 不触发）。不要升级、不要换 Electron 版本。
+- **不要尝试启动可见 GUI**（`pnpm dev` / Electron 窗口）来自我验收：本 Agent 上下文的窗口会被 Job/UI 限制卡住。你只需 `pnpm build`、`pnpm test`、类型检查和纯 Node 脚本验证；真实桌面验收由 Lead 用 scheduled task + CDP 完成。
+- 官方 44.7.0 runtime 已安装到 `node_modules/electron/dist`；DSH 自带 44.7.0 runtime 也验证过透明窗口、WebGL alpha、Slim 双层皮肤和压扁。
 
 ## 规则
 
@@ -32,4 +35,4 @@ pnpm dist
 
 ## 当前阶段
 
-M0 技术验证。详细任务见 `docs/M0-TASK.md`。
+M1 工程骨架与基础动作。详细任务见 `docs/M1-TASK.md`；M0 结果见 `M0-REPORT.md`。

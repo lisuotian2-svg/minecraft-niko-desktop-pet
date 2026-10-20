@@ -1,0 +1,316 @@
+﻿{
+    "source":  "Minecraft Java 1.20.1-Fabric local install",
+    "index":  "C:\\Users\\zgy15\\AppData\\Roaming\\.minecraft\\assets\\indexes\\5.json",
+    "jar":  "C:\\Users\\zgy15\\AppData\\Roaming\\.minecraft\\versions\\1.20.1-Fabric 0.19.5\\1.20.1-Fabric 0.19.5.jar",
+    "extractedAt":  "2026-10-20T23:17:47.4542518+08:00",
+    "entries":  [
+                    {
+                        "kind":  "sound",
+                        "key":  "minecraft/sounds/step/grass1.ogg",
+                        "sha1":  "227ab99bf7c6cf0b2002e0f7957d0ff7e5cb0c96",
+                        "file":  "sounds/step/grass1.ogg",
+                        "bytes":  7126
+                    },
+                    {
+                        "kind":  "sound",
+                        "key":  "minecraft/sounds/step/grass2.ogg",
+                        "sha1":  "5c971029d9284676dce1dda2c9d202f8c47163b2",
+                        "file":  "sounds/step/grass2.ogg",
+                        "bytes":  8131
+                    },
+                    {
+                        "kind":  "sound",
+                        "key":  "minecraft/sounds/step/grass3.ogg",
+                        "sha1":  "76de0a736928eac5003691d73bdc2eda92116198",
+                        "file":  "sounds/step/grass3.ogg",
+                        "bytes":  7013
+                    },
+                    {
+                        "kind":  "sound",
+                        "key":  "minecraft/sounds/step/grass4.ogg",
+                        "sha1":  "bc28801224a0aa77fdc93bb7c6c94beacdf77331",
+                        "file":  "sounds/step/grass4.ogg",
+                        "bytes":  7377
+                    },
+                    {
+                        "kind":  "sound",
+                        "key":  "minecraft/sounds/step/grass5.ogg",
+                        "sha1":  "813ebd91b9c3fe1ac8f89f13c85d0755678f2165",
+                        "file":  "sounds/step/grass5.ogg",
+                        "bytes":  7801
+                    },
+                    {
+                        "kind":  "sound",
+                        "key":  "minecraft/sounds/step/grass6.ogg",
+                        "sha1":  "b88cafe403394cdcd4de0e3aeb7b76f24170c6fe",
+                        "file":  "sounds/step/grass6.ogg",
+                        "bytes":  7709
+                    },
+                    {
+                        "kind":  "sound",
+                        "key":  "minecraft/sounds/mob/cat/purr1.ogg",
+                        "sha1":  "0acdc21b0f56dbe214ae2574d1f02a0ea2e99877",
+                        "file":  "sounds/mob/cat/purr1.ogg",
+                        "bytes":  73875
+                    },
+                    {
+                        "kind":  "sound",
+                        "key":  "minecraft/sounds/mob/cat/purr2.ogg",
+                        "sha1":  "e7dbf103c4d53bc6a565e12cc23e7d07774c1c5a",
+                        "file":  "sounds/mob/cat/purr2.ogg",
+                        "bytes":  75484
+                    },
+                    {
+                        "kind":  "sound",
+                        "key":  "minecraft/sounds/mob/cat/purr3.ogg",
+                        "sha1":  "02219a4525e2276a2cf78e5ec6b7e141db1e0d4e",
+                        "file":  "sounds/mob/cat/purr3.ogg",
+                        "bytes":  92888
+                    },
+                    {
+                        "kind":  "sound",
+                        "key":  "minecraft/sounds/mob/cat/purreow1.ogg",
+                        "sha1":  "a431511c850809ac8aad700e36dbd398f03efe3f",
+                        "file":  "sounds/mob/cat/purreow1.ogg",
+                        "bytes":  28399
+                    },
+                    {
+                        "kind":  "sound",
+                        "key":  "minecraft/sounds/mob/cat/meow1.ogg",
+                        "sha1":  "378d2a7a8979bb1291cbf0b1b9dc5f1de978883b",
+                        "file":  "sounds/mob/cat/meow1.ogg",
+                        "bytes":  20642
+                    },
+                    {
+                        "kind":  "sound",
+                        "key":  "minecraft/sounds/mob/cat/eat1.ogg",
+                        "sha1":  "eb38199e62e5f06fafce817edea1db860d14bf81",
+                        "file":  "sounds/mob/cat/eat1.ogg",
+                        "bytes":  20890
+                    },
+                    {
+                        "kind":  "sound",
+                        "key":  "minecraft/sounds/mob/cat/eat2.ogg",
+                        "sha1":  "193a41b1759531080c89a68a658572ea1d6333b4",
+                        "file":  "sounds/mob/cat/eat2.ogg",
+                        "bytes":  25356
+                    },
+                    {
+                        "kind":  "sound",
+                        "key":  "minecraft/sounds/random/burp.ogg",
+                        "sha1":  "bdc648e04933df8ddcccc84b375d6556776d4331",
+                        "file":  "sounds/random/burp.ogg",
+                        "bytes":  6337
+                    },
+                    {
+                        "kind":  "sound",
+                        "key":  "minecraft/sounds/fire/ignite.ogg",
+                        "sha1":  "a0d1fbff7e938e92c10c1576339dda668f40e111",
+                        "file":  "sounds/fire/ignite.ogg",
+                        "bytes":  6418
+                    },
+                    {
+                        "kind":  "sound",
+                        "key":  "minecraft/sounds/fire/fire.ogg",
+                        "sha1":  "8b260108a73470c16cd244325242d4780cfb7d78",
+                        "file":  "sounds/fire/fire.ogg",
+                        "bytes":  28689
+                    },
+                    {
+                        "kind":  "sound",
+                        "key":  "minecraft/sounds/block/candle/extinguish1.ogg",
+                        "sha1":  "f82b1154b34cd0a93533b3384d820db37174bc2e",
+                        "file":  "sounds/block/candle/extinguish1.ogg",
+                        "bytes":  25370
+                    },
+                    {
+                        "kind":  "sound",
+                        "key":  "minecraft/sounds/mob/endermen/portal.ogg",
+                        "sha1":  "7b4b5323ef066caa1ae43cbe66fffd9dfce4ed32",
+                        "file":  "sounds/mob/endermen/portal.ogg",
+                        "bytes":  10010
+                    },
+                    {
+                        "kind":  "sound",
+                        "key":  "minecraft/sounds/portal/travel.ogg",
+                        "sha1":  "43388701fac432a567fe9fec421521e6348ad780",
+                        "file":  "sounds/portal/travel.ogg",
+                        "bytes":  54283
+                    },
+                    {
+                        "kind":  "sound",
+                        "key":  "minecraft/sounds/random/click.ogg",
+                        "sha1":  "ec4f4d122ab7c5d44e48419de0e3de1b0922514d",
+                        "file":  "sounds/random/click.ogg",
+                        "bytes":  9138
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/item/bread.png",
+                        "file":  "textures/item/bread.png",
+                        "bytes":  205
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/block/torch.png",
+                        "file":  "textures/block/torch.png",
+                        "bytes":  138
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/heart.png",
+                        "file":  "textures/particle/heart.png",
+                        "bytes":  139
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/flame.png",
+                        "file":  "textures/particle/flame.png",
+                        "bytes":  124
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/effect_0.png",
+                        "file":  "textures/particle/effect_0.png",
+                        "bytes":  97
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/glitter_0.png",
+                        "file":  "textures/particle/glitter_0.png",
+                        "bytes":  90
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/effect_1.png",
+                        "file":  "textures/particle/effect_1.png",
+                        "bytes":  105
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/glitter_1.png",
+                        "file":  "textures/particle/glitter_1.png",
+                        "bytes":  95
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/effect_2.png",
+                        "file":  "textures/particle/effect_2.png",
+                        "bytes":  119
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/glitter_2.png",
+                        "file":  "textures/particle/glitter_2.png",
+                        "bytes":  92
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/effect_3.png",
+                        "file":  "textures/particle/effect_3.png",
+                        "bytes":  130
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/glitter_3.png",
+                        "file":  "textures/particle/glitter_3.png",
+                        "bytes":  100
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/effect_4.png",
+                        "file":  "textures/particle/effect_4.png",
+                        "bytes":  128
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/glitter_4.png",
+                        "file":  "textures/particle/glitter_4.png",
+                        "bytes":  98
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/effect_5.png",
+                        "file":  "textures/particle/effect_5.png",
+                        "bytes":  127
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/glitter_5.png",
+                        "file":  "textures/particle/glitter_5.png",
+                        "bytes":  105
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/effect_6.png",
+                        "file":  "textures/particle/effect_6.png",
+                        "bytes":  131
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/glitter_6.png",
+                        "file":  "textures/particle/glitter_6.png",
+                        "bytes":  98
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/effect_7.png",
+                        "file":  "textures/particle/effect_7.png",
+                        "bytes":  125
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/glitter_7.png",
+                        "file":  "textures/particle/glitter_7.png",
+                        "bytes":  105
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/generic_0.png",
+                        "file":  "textures/particle/generic_0.png",
+                        "bytes":  90
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/generic_1.png",
+                        "file":  "textures/particle/generic_1.png",
+                        "bytes":  92
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/generic_2.png",
+                        "file":  "textures/particle/generic_2.png",
+                        "bytes":  96
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/generic_3.png",
+                        "file":  "textures/particle/generic_3.png",
+                        "bytes":  100
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/generic_4.png",
+                        "file":  "textures/particle/generic_4.png",
+                        "bytes":  103
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/generic_5.png",
+                        "file":  "textures/particle/generic_5.png",
+                        "bytes":  104
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/generic_6.png",
+                        "file":  "textures/particle/generic_6.png",
+                        "bytes":  109
+                    },
+                    {
+                        "kind":  "texture",
+                        "key":  "assets/minecraft/textures/particle/generic_7.png",
+                        "file":  "textures/particle/generic_7.png",
+                        "bytes":  119
+                    }
+                ]
+}
