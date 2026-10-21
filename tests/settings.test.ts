@@ -2,18 +2,23 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_SETTINGS, parseSettings, parseSettingsJson } from '../src/shared/settings'
 
 describe('settings validation', () => {
-  it('uses the M1 defaults when fields are missing', () => {
+  it('uses the settings v2 defaults when fields are missing', () => {
     expect(parseSettings({})).toEqual(DEFAULT_SETTINGS)
     expect(DEFAULT_SETTINGS).toMatchObject({
-      version: 1,
+      version: 2,
+      autostart: true,
       size: 220,
       volume: 0.4,
-      autostart: false,
       longPressMs: 1500,
       darkThreshold: 30,
       autoTorch: true,
       clickSounds: true,
-      particles: true
+      particles: true,
+      activityLevel: 'low',
+      performanceMode: 'normal',
+      peekFrequency: 'standard',
+      sleepAfterIdleSec: 1200,
+      wakeLieInSec: 3
     })
   })
 
@@ -41,13 +46,21 @@ describe('settings validation', () => {
     })
   })
 
-  it('recovers from malformed JSON and incompatible schema versions', () => {
+  it('recovers from malformed JSON and rejects future/incompatible schema versions', () => {
     expect(parseSettingsJson('{"size":')).toEqual({ settings: DEFAULT_SETTINGS, corrupted: true })
-    expect(parseSettingsJson('{"version":2,"size":300}')).toEqual({ settings: DEFAULT_SETTINGS, corrupted: true })
+    expect(parseSettingsJson('{"version":3,"size":300}')).toEqual({ settings: DEFAULT_SETTINGS, corrupted: true })
     expect(parseSettingsJson('{"version":1,"size":"large"}')).toEqual({ settings: DEFAULT_SETTINGS, corrupted: true })
     expect(parseSettingsJson('null')).toEqual({ settings: DEFAULT_SETTINGS, corrupted: true })
+
+    // v1 is accepted and migrated to v2; the old file default autostart=false wins.
     expect(parseSettingsJson('{"version":1,"size":300}')).toMatchObject({
-      settings: { size: 300 }, corrupted: false
+      settings: { version: 2, size: 300, autostart: false },
+      corrupted: false
+    })
+    // v2 is a valid current schema; a missing autostart uses the new-install default true.
+    expect(parseSettingsJson('{"version":2,"size":300}')).toMatchObject({
+      settings: { version: 2, size: 300, autostart: true },
+      corrupted: false
     })
   })
 })

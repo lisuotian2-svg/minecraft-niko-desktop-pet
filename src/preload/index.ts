@@ -1,4 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import {
+  IPC_CHANNELS,
+  isActionId,
+  type ActionRequest,
+  type ActionSource,
+  type FullscreenState
+} from '../shared/contracts'
 import type { PetSettings } from '../shared/settings'
 import type { WalkDirection } from '../shared/walk'
 
@@ -41,6 +48,10 @@ export interface PetApi {
   onWalking(callback: (walking: boolean) => void): () => void
   onFacing(callback: (direction: WalkDirection) => void): () => void
   onBrightness(callback: (value: number | null) => void): () => void
+  onPeekState(callback: (state: FullscreenState) => void): () => void
+  revealPeek(): void
+  onAction(callback: (request: ActionRequest) => void): () => void
+  setWalkPaused(paused: boolean): Promise<void>
   onPhotoFreeze(callback: (frozen: boolean) => void): () => void
   takePhoto(): Promise<string | null>
   forceWalk(direction?: WalkDirection): Promise<void>
@@ -112,6 +123,35 @@ const petApi: PetApi = {
     }
     ipcRenderer.on('pet:brightness', listener)
     return () => ipcRenderer.removeListener('pet:brightness', listener)
+  },
+  onPeekState(callback) {
+    const listener = (_event: Electron.IpcRendererEvent, state: unknown): void => {
+      if (typeof state === 'object' && state !== null) callback(state as FullscreenState)
+    }
+    ipcRenderer.on(IPC_CHANNELS.peekState, listener)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.peekState, listener)
+  },
+  revealPeek() {
+    ipcRenderer.send(IPC_CHANNELS.peekReveal)
+  },
+  onAction(callback) {
+    const listener = (_event: Electron.IpcRendererEvent, value: unknown): void => {
+      if (typeof value !== 'object' || value === null) return
+      const record = value as { id?: unknown; source?: unknown }
+      if (!isActionId(record.id)) return
+      const source: ActionSource = record.source === 'hotkey'
+        || record.source === 'tray'
+        || record.source === 'ui'
+        || record.source === 'gesture'
+        ? record.source
+        : 'hotkey'
+      callback({ id: record.id, source })
+    }
+    ipcRenderer.on(IPC_CHANNELS.action, listener)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.action, listener)
+  },
+  setWalkPaused(paused) {
+    return ipcRenderer.invoke(paused ? IPC_CHANNELS.walkPause : IPC_CHANNELS.walkResume) as Promise<void>
   },
   onPhotoFreeze(callback) {
     const freeze = (): void => callback(true)

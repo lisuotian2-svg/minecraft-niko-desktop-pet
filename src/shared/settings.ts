@@ -1,6 +1,27 @@
-/** Settings shared by the main process, preload and renderer. */
+import {
+  ACTIVITY_LEVELS,
+  DEFAULT_HOTKEYS,
+  PERFORMANCE_MODES,
+  type ActionId,
+  type ActivityLevel,
+  type PerformanceMode
+} from './contracts'
+
+/** How often the fullscreen peek cycle runs. */
+export type PeekFrequency = 'low' | 'standard' | 'high'
+export const PEEK_FREQUENCIES: readonly PeekFrequency[] = Object.freeze(['low', 'standard', 'high'])
+
+/**
+ * Persisted settings schema v2.
+ *
+ * v1 files migrate without resetting the existing user choices: size, volume,
+ * nickname, photoDir, firstRun, etc. are preserved. New v2-only fields use
+ * their defaults, except `autostart` which keeps the value already present in
+ * an existing v1 file (new installs get `true`, an old explicit `false` stays
+ * false). The previous v1 schema is still accepted by parseSettingsJson().
+ */
 export interface PetSettings {
-  version: 1
+  version: 2
   firstRun: boolean
   size: number
   nickname: string
@@ -15,22 +36,49 @@ export interface PetSettings {
   photoDir: string
   lastDisplayId?: number
   lastX?: number
+
+  // v2 additions (interface prep for behavior / settings UI / packaging).
+  activityLevel: ActivityLevel
+  performanceMode: PerformanceMode
+  randomActions: boolean
+  actionSounds: boolean
+  fullscreenPeek: boolean
+  peekFrequency: PeekFrequency
+  sleepEnabled: boolean
+  sleepAfterIdleSec: number
+  wakeLieInSec: number
+  closeSignEnabled: boolean
+  startHidden: boolean
+  hotkeys: Record<ActionId, string | null>
 }
 
 export const DEFAULT_SETTINGS: Readonly<PetSettings> = Object.freeze({
-  version: 1,
+  version: 2,
   firstRun: true,
   size: 220,
   nickname: 'Niko',
   volume: 0.4,
   muted: false,
-  autostart: false,
+  // New installs default ON. Existing v1 files keep their stored value.
+  autostart: true,
   longPressMs: 1500,
   darkThreshold: 30,
   autoTorch: true,
   clickSounds: true,
   particles: true,
-  photoDir: ''
+  photoDir: '',
+  activityLevel: 'low',
+  performanceMode: 'normal',
+  randomActions: true,
+  actionSounds: true,
+  fullscreenPeek: true,
+  peekFrequency: 'standard',
+  sleepEnabled: true,
+  sleepAfterIdleSec: 1200,
+  wakeLieInSec: 3,
+  closeSignEnabled: true,
+  startHidden: false,
+  hotkeys: { ...DEFAULT_HOTKEYS }
 })
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -47,13 +95,55 @@ function booleanOr(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback
 }
 
+function enumOr<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
+  return typeof value === 'string' && (allowed as readonly string[]).includes(value) ? value as T : fallback
+}
+
+function isHotkeysType(value: unknown): boolean {
+  if (value === undefined) return true
+  if (!isRecord(value)) return false
+  return Object.keys(DEFAULT_HOTKEYS).every((action) => {
+    const candidate = value[action]
+    return candidate === undefined || candidate === null || typeof candidate === 'string'
+  })
+}
+
 function hasValidFieldTypes(input: Record<string, unknown>): boolean {
-  const booleans = ['firstRun', 'muted', 'autostart', 'autoTorch', 'clickSounds', 'particles']
-  const numbers = ['size', 'volume', 'longPressMs', 'darkThreshold', 'lastDisplayId', 'lastX']
+  const booleans = [
+    'firstRun', 'muted', 'autostart', 'autoTorch', 'clickSounds', 'particles',
+    'randomActions', 'actionSounds', 'fullscreenPeek', 'sleepEnabled',
+    'closeSignEnabled', 'startHidden'
+  ]
+  const numbers = [
+    'size', 'volume', 'longPressMs', 'darkThreshold', 'lastDisplayId', 'lastX',
+    'sleepAfterIdleSec', 'wakeLieInSec'
+  ]
   const strings = ['nickname', 'photoDir']
+  const enums: ReadonlyArray<readonly [string, readonly string[]]> = [
+    ['activityLevel', ACTIVITY_LEVELS],
+    ['performanceMode', PERFORMANCE_MODES],
+    ['peekFrequency', PEEK_FREQUENCIES]
+  ]
   return booleans.every((key) => input[key] === undefined || typeof input[key] === 'boolean') &&
     numbers.every((key) => input[key] === undefined || (typeof input[key] === 'number' && Number.isFinite(input[key]))) &&
-    strings.every((key) => input[key] === undefined || typeof input[key] === 'string')
+    strings.every((key) => input[key] === undefined || typeof input[key] === 'string') &&
+    enums.every(([key, allowed]) => input[key] === undefined
+      || (typeof input[key] === 'string' && allowed.includes(input[key] as string))) &&
+    isHotkeysType(input.hotkeys)
+}
+
+function parseHotkeys(value: unknown): Record<ActionId, string | null> {
+  const result: Record<ActionId, string | null> = { ...DEFAULT_HOTKEYS }
+  if (!isRecord(value)) return result
+  for (const action of Object.keys(DEFAULT_HOTKEYS) as ActionId[]) {
+    const candidate = value[action]
+    if (candidate === null) result[action] = null
+    else if (typeof candidate === 'string') {
+      const trimmed = candidate.trim()
+      result[action] = trimmed.length === 0 ? null : trimmed.slice(0, 64)
+    }
+  }
+  return result
 }
 
 /** Manual schema validation. Out-of-range numeric fields are clamped on load and save. */
@@ -61,20 +151,36 @@ export function parseSettings(value: unknown): PetSettings {
   const input = isRecord(value) ? value : {}
   const nickname = typeof input.nickname === 'string' ? input.nickname.slice(0, 24) : DEFAULT_SETTINGS.nickname
   const photoDir = typeof input.photoDir === 'string' ? input.photoDir : DEFAULT_SETTINGS.photoDir
+  // v1 files were written with autostart=false by default. A missing field in a
+  // v1 file therefore means "keep the old default", not "turn it on now".
+  const migratingV1 = input.version === 1
+  const autostartFallback = migratingV1 ? false : DEFAULT_SETTINGS.autostart
   const result: PetSettings = {
-    version: 1,
+    version: 2,
     firstRun: booleanOr(input.firstRun, DEFAULT_SETTINGS.firstRun),
     size: boundedNumber(input.size, DEFAULT_SETTINGS.size, 80, 500, true),
     nickname,
     volume: boundedNumber(input.volume, DEFAULT_SETTINGS.volume, 0, 1),
     muted: booleanOr(input.muted, DEFAULT_SETTINGS.muted),
-    autostart: booleanOr(input.autostart, DEFAULT_SETTINGS.autostart),
+    autostart: booleanOr(input.autostart, autostartFallback),
     longPressMs: boundedNumber(input.longPressMs, DEFAULT_SETTINGS.longPressMs, 1000, 2000, true),
     darkThreshold: boundedNumber(input.darkThreshold, DEFAULT_SETTINGS.darkThreshold, 10, 60, true),
     autoTorch: booleanOr(input.autoTorch, DEFAULT_SETTINGS.autoTorch),
     clickSounds: booleanOr(input.clickSounds, DEFAULT_SETTINGS.clickSounds),
     particles: booleanOr(input.particles, DEFAULT_SETTINGS.particles),
-    photoDir
+    photoDir,
+    activityLevel: enumOr(input.activityLevel, ACTIVITY_LEVELS, DEFAULT_SETTINGS.activityLevel),
+    performanceMode: enumOr(input.performanceMode, PERFORMANCE_MODES, DEFAULT_SETTINGS.performanceMode),
+    randomActions: booleanOr(input.randomActions, DEFAULT_SETTINGS.randomActions),
+    actionSounds: booleanOr(input.actionSounds, DEFAULT_SETTINGS.actionSounds),
+    fullscreenPeek: booleanOr(input.fullscreenPeek, DEFAULT_SETTINGS.fullscreenPeek),
+    peekFrequency: enumOr(input.peekFrequency, PEEK_FREQUENCIES, DEFAULT_SETTINGS.peekFrequency),
+    sleepEnabled: booleanOr(input.sleepEnabled, DEFAULT_SETTINGS.sleepEnabled),
+    sleepAfterIdleSec: boundedNumber(input.sleepAfterIdleSec, DEFAULT_SETTINGS.sleepAfterIdleSec, 60, 86_400, true),
+    wakeLieInSec: boundedNumber(input.wakeLieInSec, DEFAULT_SETTINGS.wakeLieInSec, 1, 60, true),
+    closeSignEnabled: booleanOr(input.closeSignEnabled, DEFAULT_SETTINGS.closeSignEnabled),
+    startHidden: booleanOr(input.startHidden, DEFAULT_SETTINGS.startHidden),
+    hotkeys: parseHotkeys(input.hotkeys)
   }
   if (typeof input.lastDisplayId === 'number' && Number.isFinite(input.lastDisplayId)) {
     result.lastDisplayId = Math.trunc(input.lastDisplayId)
@@ -94,7 +200,12 @@ export interface ParsedSettingsJson {
 export function parseSettingsJson(text: string): ParsedSettingsJson {
   try {
     const value: unknown = JSON.parse(text)
-    if (!isRecord(value) || (value.version !== undefined && value.version !== 1) || !hasValidFieldTypes(value)) {
+    if (!isRecord(value)) return { settings: parseSettings(DEFAULT_SETTINGS), corrupted: true }
+    const version = value.version
+    if (version !== undefined && version !== 1 && version !== 2) {
+      return { settings: parseSettings(DEFAULT_SETTINGS), corrupted: true }
+    }
+    if (!hasValidFieldTypes(value)) {
       return { settings: parseSettings(DEFAULT_SETTINGS), corrupted: true }
     }
     return { settings: parseSettings(value), corrupted: false }

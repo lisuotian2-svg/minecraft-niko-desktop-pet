@@ -1,7 +1,12 @@
 import type { SkinViewer } from 'skinview3d'
 import type { PetApi } from '../preload/index'
 import { reboundEase } from '../shared/easing'
-import { GestureMachine, type GestureAction, type GesturePhase } from '../shared/gesture'
+import {
+  GestureMachine,
+  type GestureAction,
+  type GesturePhase,
+  type GestureTiming
+} from '../shared/gesture'
 import type { PetAnimator } from './animator'
 import type { PetAudio } from './audio'
 import type { CharacterHitTest } from './hit-test'
@@ -11,10 +16,12 @@ export interface GestureEffects {
   startGathering(): void
   stopGathering(): void
   close(): Promise<void>
+  /** Called before a new press starts so an active action can yield to the gesture. */
+  onGestureStart?(): void
 }
 
 export class PetGestures {
-  private readonly machine = new GestureMachine()
+  private readonly machine: GestureMachine
   private interactive = false
   private pressStartedAt = 0
   private pressSequence = 0
@@ -22,8 +29,9 @@ export class PetGestures {
   private tweenFrame = 0
   private tweenGeneration = 0
   private cursorPollPending = false
-  private clockTimers: number[] = []
+  private clockTimer: number | null = null
   private closePromise: Promise<void> | null = null
+  private readonly unsubscribeSettings: () => void
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -32,8 +40,16 @@ export class PetGestures {
     private readonly animator: PetAnimator,
     private readonly audio: PetAudio,
     private readonly api: PetApi,
-    private readonly effects: GestureEffects
+    private readonly effects: GestureEffects,
+    timing: Partial<GestureTiming> = {}
   ) {
+    this.machine = new GestureMachine(timing)
+    // Keep longPressMs real even before pet.ts forwards it explicitly. pet.ts may
+    // still call setLongPressMs() from applySettings; the result is idempotent.
+    void api.getSettings()
+      .then((settings) => this.setLongPressMs(settings.longPressMs))
+      .catch((error: unknown) => this.api.log(`gesture settings load error: ${String(error)}`))
+    this.unsubscribeSettings = api.onSettings((settings) => this.setLongPressMs(settings.longPressMs))
     window.addEventListener('mousemove', (event) => this.updateCursor(event.clientX, event.clientY))
     window.setInterval(() => { this.pollCursor() }, 33)
     canvas.addEventListener('pointerdown', this.onPointerDown)
@@ -49,6 +65,25 @@ export class PetGestures {
   get isDragging(): boolean { return this.machine.isDragging }
   get isClosing(): boolean { return this.machine.isClosing }
   get gesturePhase(): GesturePhase { return this.machine.phase }
+  get longPressMs(): number { return this.machine.timing.longPressMs }
+  get timing(): Readonly<GestureTiming> { return this.machine.timing }
+
+  /** Settings.longPressMs -> shared state machine; gather/close are derived from it. */
+  setLongPressMs(value: number): void {
+    this.machine.setTiming({ longPressMs: value })
+    if (this.activePointerId !== null) this.scheduleClock()
+  }
+
+  setTiming(timing: Partial<GestureTiming>): void {
+    this.machine.setTiming(timing)
+    if (this.activePointerId !== null) this.scheduleClock()
+  }
+
+  dispose(): void {
+    this.unsubscribeSettings()
+    this.clearClockTimers()
+    this.stopTween()
+  }
 
   forceClose(): Promise<void> {
     this.apply(this.machine.forceClose())
@@ -121,18 +156,32 @@ export class PetGestures {
 
   private scheduleClock(): void {
     this.clearClockTimers()
+    this.scheduleNextClock()
+  }
+
+  /**
+   * One timeout chain driven by GestureMachine.nextDeadline(). The 250 ms drag
+   * gate, longPressMs, gather offset and close offset all come from the shared
+   * state machine; this file no longer duplicates 1500/2400/3000.
+   */
+  private scheduleNextClock(): void {
+    if (this.clockTimer !== null) return
+    const now = performance.now()
+    const deadline = this.machine.nextDeadline(now)
+    if (deadline === null) return
     const sequence = this.pressSequence
-    for (const deadline of [1500, 2400, 3000]) {
-      const timer = window.setTimeout(() => {
-        if (sequence === this.pressSequence) this.apply(this.machine.tick(performance.now()))
-      }, deadline)
-      this.clockTimers.push(timer)
-    }
+    const delay = Math.max(0, deadline - now)
+    this.clockTimer = window.setTimeout(() => {
+      this.clockTimer = null
+      if (sequence !== this.pressSequence) return
+      this.apply(this.machine.tick(performance.now()))
+      if (this.activePointerId !== null && !this.machine.isClosing) this.scheduleNextClock()
+    }, delay)
   }
 
   private clearClockTimers(): void {
-    for (const timer of this.clockTimers) window.clearTimeout(timer)
-    this.clockTimers = []
+    if (this.clockTimer !== null) window.clearTimeout(this.clockTimer)
+    this.clockTimer = null
   }
 
   private apply(actions: readonly GestureAction[]): void {
@@ -194,6 +243,8 @@ export class PetGestures {
     const now = performance.now()
     const actions = this.machine.press(now, event.screenX, event.screenY)
     if (actions.length === 0) return
+    // Gesture priority: an active renderer action yields before the press starts.
+    this.effects.onGestureStart?.()
     event.preventDefault()
     this.activePointerId = event.pointerId
     this.canvas.setPointerCapture(event.pointerId)

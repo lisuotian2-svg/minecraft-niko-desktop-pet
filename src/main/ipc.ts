@@ -1,6 +1,7 @@
 import { app, ipcMain, screen, type WebContents } from 'electron'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { IPC_CHANNELS } from '../shared/contracts'
 import type { PetSettings } from '../shared/settings'
 import type { WalkDirection } from '../shared/walk'
 import type { Logger } from './logger'
@@ -144,5 +145,16 @@ export function registerIpc({ pet, settingsWindow, settings, logger }: IpcDepend
   ipcMain.handle('pet:walk:stop', (event): void => {
     if (!isPet(event.sender) || app.isPackaged) throw new Error('Debug walk is unavailable')
     pet.stopWalk()
+  })
+
+  // Production walk pause used by behavior while eating/stretching/sleeping.
+  ipcMain.handle(IPC_CHANNELS.walkPause, (event): void => {
+    if (!isPet(event.sender)) throw new Error('Walk pause rejected')
+    pet.setWalkPaused(true)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.walkResume, (event): void => {
+    if (!isPet(event.sender)) throw new Error('Walk resume rejected')
+    pet.setWalkPaused(false)
   })
 }

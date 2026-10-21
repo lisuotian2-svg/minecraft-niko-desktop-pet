@@ -1,7 +1,11 @@
-import { app, globalShortcut, ipcMain, screen, type Tray } from 'electron'
+import { app, ipcMain, screen, type Tray } from 'electron'
+import { IPC_CHANNELS, type ActionRequest } from '../shared/contracts'
 import { BrightnessMonitor } from './brightness'
+import { FullscreenDetector } from './fullscreen'
+import { HotkeyManager } from './hotkeys'
 import { registerIpc } from './ipc'
 import { Logger } from './logger'
+import { PeekController } from './peek'
 import { PetWindowController } from './pet-window'
 import { capturePhoto } from './photo'
 import { SettingsStore } from './settings'
@@ -13,6 +17,9 @@ let settingsWindow: SettingsWindowController | null = null
 let tray: Tray | null = null
 let logger: Logger | null = null
 let brightness: BrightnessMonitor | null = null
+let peek: PeekController | null = null
+let fullscreen: FullscreenDetector | null = null
+let hotkeys: HotkeyManager | null = null
 
 if (!app.requestSingleInstanceLock()) {
   app.quit()
@@ -39,6 +46,36 @@ if (!app.requestSingleInstanceLock()) {
     registerIpc({ pet, settingsWindow, settings, logger })
     pet.create()
 
+    peek = new PeekController({
+      pet,
+      logger,
+      sendState: (state) => {
+        const win = pet?.getWindow()
+        if (win && !win.isDestroyed() && !win.webContents.isLoading()) {
+          win.webContents.send(IPC_CHANNELS.peekState, state)
+        }
+      }
+    })
+    fullscreen = new FullscreenDetector({
+      logger,
+      onState: (state) => peek?.setDetectorState(state)
+    })
+    const petWin = pet.getWindow()
+    petWin?.webContents.on('did-finish-load', () => {
+      if (petWin.isDestroyed() || !peek) return
+      petWin.webContents.send(IPC_CHANNELS.peekState, peek.getState())
+    })
+    setTimeout(() => {
+      const win = pet?.getWindow()
+      if (win && !win.isDestroyed() && !win.webContents.isLoading() && peek) {
+        win.webContents.send(IPC_CHANNELS.peekState, peek.getState())
+      }
+    }, 900)
+    ipcMain.on(IPC_CHANNELS.peekReveal, (event) => {
+      if (event.sender === pet?.getWindow()?.webContents) peek?.reveal()
+    })
+    fullscreen.start()
+
     const takePhoto = async (): Promise<string | null> => {
       const win = pet?.getWindow()
       if (!win || win.isDestroyed()) return null
@@ -62,6 +99,35 @@ if (!app.requestSingleInstanceLock()) {
       return takePhoto()
     })
 
+    const sendAction = (request: ActionRequest): void => {
+      if (request.id === 'photo') {
+        void takePhoto()
+        return
+      }
+      if (request.id === 'settings') {
+        settingsWindow?.open()
+        return
+      }
+      if (request.id === 'togglePet') {
+        // Hide is intentionally only available through the long-press close gesture.
+        pet?.show()
+        return
+      }
+      const win = pet?.getWindow()
+      if (!win || win.isDestroyed() || win.webContents.isLoading()) return
+      win.webContents.send(IPC_CHANNELS.action, request)
+    }
+
+    hotkeys = new HotkeyManager({
+      logger,
+      onAction: sendAction,
+      bindings: settings.get().hotkeys
+    })
+    const hotkeyResult = hotkeys.apply(settings.get().hotkeys)
+    if (!hotkeyResult.ok) {
+      logger.warn(`hotkey registration incomplete: ${hotkeyResult.errors.map((error) => `${error.action}:${error.reason}`).join(', ')}`)
+    }
+
     tray = createTray({
       isPetVisible: () => pet?.isVisible() ?? false,
       showPet: () => pet?.show(),
@@ -70,10 +136,6 @@ if (!app.requestSingleInstanceLock()) {
       takePhoto: () => { void takePhoto() },
       quit: () => app.quit()
     }, logger)
-
-    if (!globalShortcut.register('Control+Alt+P', () => { void takePhoto() })) {
-      logger.warn('failed to register Ctrl+Alt+P photo shortcut')
-    }
 
     const reconcile = (): void => pet?.reconcileDisplay()
     screen.on('display-added', reconcile)
@@ -98,7 +160,12 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('before-quit', () => {
     brightness?.stop()
-    globalShortcut.unregisterAll()
+    fullscreen?.stop()
+    fullscreen = null
+    peek?.dispose()
+    peek = null
+    hotkeys?.unregisterAll()
+    hotkeys = null
     pet?.prepareToQuit()
   })
   app.on('will-quit', () => {

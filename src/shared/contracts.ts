@@ -159,11 +159,15 @@ export interface CloseSignState {
 
 export const IPC_CHANNELS = Object.freeze({
   peekState: 'pet:peek-state',
+  peekReveal: 'pet:peek-reveal',
   action: 'pet:action',
   actionResult: 'pet:action-result',
   closeSign: 'pet:close-sign',
+  closeSignReveal: 'pet:close-sign-reveal',
   performance: 'pet:performance',
-  activity: 'pet:activity'
+  activity: 'pet:activity',
+  walkPause: 'pet:walk:pause',
+  walkResume: 'pet:walk:resume'
 })
 
 export function isActionId(value: unknown): value is ActionId {

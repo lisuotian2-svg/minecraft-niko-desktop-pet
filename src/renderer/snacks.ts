@@ -182,3 +182,102 @@ export class SnackParticles {
     this.context.setTransform(ratio, 0, 0, ratio, 0, 0)
   }
 }
+
+export interface ContactShadowState {
+  /** Centre of the shadow in window CSS pixels. */
+  x: number
+  y: number
+  width: number
+  height: number
+  opacity: number
+  visible: boolean
+}
+
+/**
+ * Cheap pixel-art contact shadow on its own canvas behind the WebGL canvas.
+ * Enabling real shadow maps in a transparent always-on-top window is expensive
+ * and can draw dark rectangles over the desktop; this keeps the pet grounded
+ * for a fraction of the cost. Simple performance mode turns it off.
+ */
+export class ContactShadow {
+  private readonly canvas = document.createElement('canvas')
+  private readonly context: CanvasRenderingContext2D
+  private state: ContactShadowState = {
+    x: 0, y: 0, width: 0, height: 0, opacity: 0.18, visible: false
+  }
+  private enabled = true
+  private width = 0
+  private height = 0
+  private ratio = 0
+
+  constructor() {
+    const context = this.canvas.getContext('2d', { alpha: true })
+    if (!context) throw new Error('Contact shadow canvas 2D context is unavailable')
+    this.context = context
+    this.canvas.setAttribute('aria-hidden', 'true')
+    this.canvas.style.cssText =
+      'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;background:transparent;z-index:0;'
+    const pet = document.querySelector<HTMLCanvasElement>('#pet')
+    if (pet?.parentElement) pet.parentElement.insertBefore(this.canvas, pet)
+    else document.body.insertBefore(this.canvas, document.body.firstChild)
+    this.resize()
+  }
+
+  setEnabled(enabled: boolean): void {
+    this.enabled = enabled
+    if (!enabled) this.clear()
+  }
+
+  setState(state: ContactShadowState): void {
+    this.state = state
+    this.draw()
+  }
+
+  clear(): void {
+    this.context.clearRect(0, 0, this.width, this.height)
+  }
+
+  private draw(): void {
+    this.resize()
+    const context = this.context
+    context.clearRect(0, 0, this.width, this.height)
+    if (!this.enabled || !this.state.visible) return
+    const width = Math.max(0, this.state.width)
+    const height = Math.max(0, this.state.height)
+    if (width < 2 || height < 1) return
+    const opacity = Math.max(0, Math.min(0.28, this.state.opacity))
+    if (opacity <= 0.001) return
+    const bands = 5
+    context.save()
+    context.imageSmoothingEnabled = false
+    context.fillStyle = '#1b1024'
+    const rowHeight = Math.max(1, Math.ceil(height / bands))
+    for (let index = 0; index < bands; index += 1) {
+      const t = ((index + 0.5) / bands) * 2 - 1
+      const rowWidth = width * Math.sqrt(Math.max(0, 1 - t * t))
+      if (rowWidth < 1) continue
+      const rowTop = Math.round(this.state.y - height / 2 + index * (height / bands))
+      context.globalAlpha = opacity * (0.62 + 0.38 * (1 - Math.abs(t)))
+      context.fillRect(
+        Math.round(this.state.x - rowWidth / 2),
+        rowTop,
+        Math.max(1, Math.round(rowWidth)),
+        rowHeight
+      )
+    }
+    context.restore()
+  }
+
+  private resize(): void {
+    const width = Math.max(1, window.innerWidth)
+    const height = Math.max(1, window.innerHeight)
+    const ratio = Math.min(2, window.devicePixelRatio || 1)
+    if (width === this.width && height === this.height && ratio === this.ratio) return
+    this.width = width
+    this.height = height
+    this.ratio = ratio
+    this.canvas.width = Math.ceil(width * ratio)
+    this.canvas.height = Math.ceil(height * ratio)
+    this.context.setTransform(ratio, 0, 0, ratio, 0, 0)
+  }
+}

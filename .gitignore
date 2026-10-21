@@ -7,3 +7,4 @@ artifacts/
 *.log
 
 .scratch*
+native/fullscreen-watcher/bin/
