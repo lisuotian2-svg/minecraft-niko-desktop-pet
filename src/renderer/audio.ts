@@ -1,7 +1,9 @@
-import type { PetApi, AssetName } from '../preload/index'
+import type { PetApi } from '../preload/index'
 import { DEFAULT_SETTINGS, type PetSettings } from '../shared/settings'
 
-type SoundName = Exclude<AssetName, 'skin'>
+type SoundName = 'Ya1' | 'Ya2' | 'grass1' | 'grass2' | 'grass3' | 'grass4' | 'grass5' | 'grass6'
+  | 'ignite' | 'extinguish' | 'portal' | 'travel' | 'purreow'
+  | 'eat1' | 'eat2' | 'burp'
 const STEP_NAMES: readonly SoundName[] = ['grass1', 'grass2', 'grass3', 'grass4', 'grass5', 'grass6']
 
 export class PetAudio {
@@ -11,7 +13,8 @@ export class PetAudio {
   private previousStep = -1
 
   constructor(private readonly api: PetApi) {
-    void Promise.allSettled((['Ya1', 'Ya2', ...STEP_NAMES] as SoundName[])
+    void Promise.allSettled((['Ya1', 'Ya2', ...STEP_NAMES, 'ignite', 'extinguish', 'portal', 'travel', 'purreow',
+      'eat1', 'eat2', 'burp'] as SoundName[])
       .map((name) => this.load(name)))
   }
 
@@ -24,6 +27,19 @@ export class PetAudio {
   release(): void {
     if (this.settings.clickSounds) this.play('Ya2', 1)
   }
+
+  torch(on: boolean): void { this.play(on ? 'ignite' : 'extinguish', 0.55) }
+
+  close(): void {
+    this.play('portal', 0.45)
+    this.play('travel', 0.35)
+  }
+
+  stretch(): void { this.play('purreow', 0.12) }
+
+  chew(): void { this.play(Math.random() < 0.5 ? 'eat1' : 'eat2', 0.5) }
+
+  burp(): void { this.play('burp', 0.55) }
 
   step(): void {
     if (STEP_NAMES.length === 0) return

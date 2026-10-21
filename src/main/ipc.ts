@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import type { PetSettings } from '../shared/settings'
 import type { WalkDirection } from '../shared/walk'
 import type { Logger } from './logger'
-import type { PetWindowController } from './pet-window'
+import type { CloseScene, PetWindowController } from './pet-window'
 import type { SettingsStore } from './settings'
 import type { SettingsWindowController } from './settings-window'
 
@@ -17,7 +17,35 @@ const ASSET_PATHS = {
   grass3: join('assets', 'vanilla', 'sounds', 'step', 'grass3.ogg'),
   grass4: join('assets', 'vanilla', 'sounds', 'step', 'grass4.ogg'),
   grass5: join('assets', 'vanilla', 'sounds', 'step', 'grass5.ogg'),
-  grass6: join('assets', 'vanilla', 'sounds', 'step', 'grass6.ogg')
+  grass6: join('assets', 'vanilla', 'sounds', 'step', 'grass6.ogg'),
+  torchTexture: join('assets', 'vanilla', 'textures', 'block', 'torch.png'),
+  flameTexture: join('assets', 'vanilla', 'textures', 'particle', 'flame.png'),
+  breadTexture: join('assets', 'vanilla', 'textures', 'item', 'bread.png'),
+  eat1: join('assets', 'vanilla', 'sounds', 'mob', 'cat', 'eat1.ogg'),
+  eat2: join('assets', 'vanilla', 'sounds', 'mob', 'cat', 'eat2.ogg'),
+  burp: join('assets', 'vanilla', 'sounds', 'random', 'burp.ogg'),
+  effect0: join('assets', 'vanilla', 'textures', 'particle', 'effect_0.png'),
+  effect1: join('assets', 'vanilla', 'textures', 'particle', 'effect_1.png'),
+  effect2: join('assets', 'vanilla', 'textures', 'particle', 'effect_2.png'),
+  effect3: join('assets', 'vanilla', 'textures', 'particle', 'effect_3.png'),
+  effect4: join('assets', 'vanilla', 'textures', 'particle', 'effect_4.png'),
+  effect5: join('assets', 'vanilla', 'textures', 'particle', 'effect_5.png'),
+  effect6: join('assets', 'vanilla', 'textures', 'particle', 'effect_6.png'),
+  effect7: join('assets', 'vanilla', 'textures', 'particle', 'effect_7.png'),
+  glitter0: join('assets', 'vanilla', 'textures', 'particle', 'glitter_0.png'),
+  glitter1: join('assets', 'vanilla', 'textures', 'particle', 'glitter_1.png'),
+  glitter2: join('assets', 'vanilla', 'textures', 'particle', 'glitter_2.png'),
+  glitter3: join('assets', 'vanilla', 'textures', 'particle', 'glitter_3.png'),
+  glitter4: join('assets', 'vanilla', 'textures', 'particle', 'glitter_4.png'),
+  glitter5: join('assets', 'vanilla', 'textures', 'particle', 'glitter_5.png'),
+  glitter6: join('assets', 'vanilla', 'textures', 'particle', 'glitter_6.png'),
+  glitter7: join('assets', 'vanilla', 'textures', 'particle', 'glitter_7.png'),
+  ignite: join('assets', 'vanilla', 'sounds', 'fire', 'ignite.ogg'),
+  extinguish: join('assets', 'vanilla', 'sounds', 'block', 'candle', 'extinguish1.ogg'),
+  portal: join('assets', 'vanilla', 'sounds', 'mob', 'endermen', 'portal.ogg'),
+  travel: join('assets', 'vanilla', 'sounds', 'portal', 'travel.ogg'),
+  fireLoop: join('assets', 'vanilla', 'sounds', 'fire', 'fire.ogg'),
+  purreow: join('assets', 'vanilla', 'sounds', 'mob', 'cat', 'purreow1.ogg')
 } as const
 
 export interface IpcDependencies {
@@ -34,6 +62,24 @@ export function registerIpc({ pet, settingsWindow, settings, logger }: IpcDepend
 
   ipcMain.on('pet:interactive', (event, value: unknown) => {
     if (isPet(event.sender) && typeof value === 'boolean') pet.setInteractive(value)
+  })
+
+  ipcMain.on('pet:drag:start', (event) => {
+    if (isPet(event.sender)) pet.startDrag()
+  })
+
+  ipcMain.on('pet:drag:end', (event) => {
+    if (isPet(event.sender)) pet.endDrag()
+  })
+
+  ipcMain.handle('pet:close:start', (event): CloseScene => {
+    if (!isPet(event.sender)) throw new Error('Close request rejected')
+    return pet.beginClose()
+  })
+
+  ipcMain.handle('pet:close:finish', (event): void => {
+    if (!isPet(event.sender)) throw new Error('Close request rejected')
+    pet.finishClose()
   })
 
   ipcMain.on('pet:log', (event, message: unknown) => {

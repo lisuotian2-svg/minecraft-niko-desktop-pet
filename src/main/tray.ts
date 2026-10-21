@@ -8,6 +8,7 @@ export interface TrayActions {
   showPet(): void
   hidePet(): void
   openSettings(): void
+  takePhoto(): void
   quit(): void
 }
 
@@ -43,8 +44,8 @@ export function createTray(actions: TrayActions, logger: Logger): Tray {
       },
       { label: '设置', click: () => actions.openSettings() },
       {
-        label: '拍照（即将推出）',
-        click: () => logger.info('photo requested from tray; M3 placeholder')
+        label: '拍照',
+        click: () => actions.takePhoto()
       },
       { type: 'separator' },
       { label: '退出', click: () => actions.quit() }

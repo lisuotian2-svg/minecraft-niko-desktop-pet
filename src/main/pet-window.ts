@@ -14,6 +14,13 @@ import type { Logger } from './logger'
 
 export const PET_WINDOW_SIZE = 420
 
+export interface CloseScene {
+  width: number
+  height: number
+  originX: number
+  originY: number
+}
+
 export class PetWindowController {
   private win: BrowserWindow | null = null
   private interactive = false
@@ -28,6 +35,14 @@ export class PetWindowController {
   private quitting = false
   private requestedPetSize: number
   private windowSize = PET_WINDOW_SIZE
+  private dragging = false
+  private dragTimer: ReturnType<typeof setInterval> | null = null
+  private dragOffset = { x: 0, y: 0 }
+  private closing = false
+  private closeTimer: ReturnType<typeof setTimeout> | null = null
+  private closeScene: CloseScene | null = null
+  private compactBounds: Electron.Rectangle | null = null
+  private restorationPending = false
 
   constructor(private readonly logger: Logger, petSize = 220) {
     this.requestedPetSize = petSize
@@ -85,12 +100,21 @@ export class PetWindowController {
     win.on('closed', () => {
       this.win = null
       this.interactive = false
+      this.stopDragTimer()
+      this.clearCloseTimer()
       this.stopTimer()
     })
-    win.on('show', () => this.resume())
+    win.on('show', () => {
+      this.resume()
+      if (this.restorationPending) {
+        this.restorationPending = false
+        win.webContents.send('pet:restored')
+      }
+    })
     win.on('hide', () => this.pause())
     // Guard against OS/DPI feedback resizing the transparent window horizontally.
     win.on('resize', () => {
+      if (this.closing) return
       const bounds = win.getBounds()
       if (bounds.width !== this.windowSize || bounds.height !== this.windowSize) {
         this.logger.warn(`pet resize guard: ${bounds.width}x${bounds.height} -> ${this.windowSize}`)
@@ -129,11 +153,17 @@ export class PetWindowController {
   show(): void {
     const win = this.getWindow()
     if (!win) return
+    if (this.closing) this.finishClose()
     this.reconcileDisplay()
     win.showInactive()
   }
 
   hide(): void {
+    if (this.closing) {
+      this.finishClose()
+      return
+    }
+    if (this.dragging) this.endDrag()
     this.getWindow()?.hide()
   }
 
@@ -143,6 +173,7 @@ export class PetWindowController {
 
   setInteractive(value: boolean): void {
     const win = this.getWindow()
+    if (this.closing || (this.dragging && !value)) return
     if (!win || value === this.interactive) return
     this.interactive = value
     win.setIgnoreMouseEvents(!value, { forward: true })
@@ -150,6 +181,7 @@ export class PetWindowController {
   }
 
   forceWalk(direction?: WalkDirection): void {
+    if (this.dragging || this.closing) return
     if (direction !== undefined) this.setDirection(direction)
     const wasWalking = this.walking
     this.walking = true
@@ -171,7 +203,7 @@ export class PetWindowController {
 
   reconcileDisplay(): void {
     const win = this.getWindow()
-    if (!win) return
+    if (!win || this.dragging || this.closing) return
     const area = screen.getDisplayMatching(win.getBounds()).workArea
     const nextSize = sizeForArea(this.requestedPetSize, area)
     this.x += (this.windowSize - nextSize) / 2
@@ -191,8 +223,88 @@ export class PetWindowController {
     this.reconcileDisplay()
   }
 
+  startDrag(): void {
+    const win = this.getWindow()
+    if (!win || !win.isVisible() || this.dragging || this.closing) return
+    this.stopWalk()
+    const cursor = screen.getCursorScreenPoint()
+    const bounds = win.getBounds()
+    this.dragOffset = { x: cursor.x - bounds.x, y: cursor.y - bounds.y }
+    this.dragging = true
+    this.dragTick()
+    this.dragTimer = setInterval(() => this.dragTick(), 1000 / 60)
+    this.logger.info('pet drag started')
+  }
+
+  endDrag(): void {
+    if (!this.dragging) return
+    this.dragging = false
+    this.stopDragTimer()
+    const win = this.getWindow()
+    if (!win || this.closing) return
+    const cursor = screen.getCursorScreenPoint()
+    const area = screen.getDisplayNearestPoint(cursor).workArea
+    const nextSize = sizeForArea(this.requestedPetSize, area)
+    const x = Math.round(clampWindowX(cursor.x - this.dragOffset.x, area, nextSize))
+    const y = bottomWindowY(area, nextSize)
+    this.windowSize = nextSize
+    this.x = x
+    win.setBounds({ x, y, width: nextSize, height: nextSize }, false)
+    this.nextWalkAt = performance.now() + nextWalkDelayMs()
+    this.logger.info(`pet drag landed -> ${x},${y} ${nextSize}x${nextSize}`)
+  }
+
+  beginClose(): CloseScene {
+    const win = this.getWindow()
+    if (!win || !win.isVisible()) throw new Error('Pet window is unavailable')
+    if (this.closing && this.closeScene) return this.closeScene
+    this.dragging = false
+    this.stopDragTimer()
+    this.stopWalk()
+    const bounds = win.getBounds()
+    const display = screen.getDisplayMatching(bounds)
+    const expanded = display.bounds
+    this.compactBounds = bounds
+    this.closeScene = {
+      width: expanded.width,
+      height: expanded.height,
+      originX: Math.round(bounds.x + bounds.width / 2 - expanded.x),
+      originY: Math.round(bounds.y + bounds.height * 0.52 - expanded.y)
+    }
+    this.closing = true
+    this.interactive = false
+    win.setIgnoreMouseEvents(true, { forward: true })
+    win.setBounds(expanded, false)
+    this.closeTimer = setTimeout(() => this.finishClose(), 1200)
+    this.logger.info(`pet close expanded -> ${expanded.x},${expanded.y} ${expanded.width}x${expanded.height}`)
+    return this.closeScene
+  }
+
+  finishClose(): void {
+    if (!this.closing) return
+    this.clearCloseTimer()
+    const win = this.getWindow()
+    const compactBounds = this.compactBounds
+    this.closeScene = null
+    this.compactBounds = null
+    if (win) {
+      win.hide()
+      if (compactBounds) {
+        win.setBounds(compactBounds, false)
+        this.x = compactBounds.x
+        this.windowSize = compactBounds.width
+      }
+    }
+    this.closing = false
+    this.restorationPending = true
+    this.reconcileDisplay()
+    this.logger.info('pet close completed; compact bounds restored; tray retained')
+  }
+
   prepareToQuit(): void {
     this.quitting = true
+    this.stopDragTimer()
+    this.clearCloseTimer()
     this.stopTimer()
   }
 
@@ -202,6 +314,7 @@ export class PetWindowController {
     this.lastTickAt = now
     const win = this.getWindow()
     if (!win || !win.isVisible()) return
+    if (this.dragging || this.closing) return
     if (!this.walking && now >= this.nextWalkAt) {
       this.walking = true
       this.walkEndAt = now + walkDurationMs()
@@ -265,6 +378,35 @@ export class PetWindowController {
   private stopTimer(): void {
     if (this.timer !== null) clearInterval(this.timer)
     this.timer = null
+  }
+
+  private dragTick(): void {
+    const win = this.getWindow()
+    if (!this.dragging || !win || !win.isVisible()) {
+      this.stopDragTimer()
+      return
+    }
+    const cursor = screen.getCursorScreenPoint()
+    const displays = screen.getAllDisplays()
+    const minX = Math.min(...displays.map((display) => display.bounds.x))
+    const minY = Math.min(...displays.map((display) => display.bounds.y))
+    const maxX = Math.max(...displays.map((display) => display.bounds.x + display.bounds.width))
+    const maxY = Math.max(...displays.map((display) => display.bounds.y + display.bounds.height))
+    const x = Math.round(Math.min(Math.max(minX, maxX - this.windowSize), Math.max(minX, cursor.x - this.dragOffset.x)))
+    const y = Math.round(Math.min(Math.max(minY, maxY - this.windowSize), Math.max(minY, cursor.y - this.dragOffset.y)))
+    const bounds = win.getBounds()
+    if (bounds.x !== x || bounds.y !== y) win.setPosition(x, y, false)
+    this.x = x
+  }
+
+  private stopDragTimer(): void {
+    if (this.dragTimer !== null) clearInterval(this.dragTimer)
+    this.dragTimer = null
+  }
+
+  private clearCloseTimer(): void {
+    if (this.closeTimer !== null) clearTimeout(this.closeTimer)
+    this.closeTimer = null
   }
 }
 

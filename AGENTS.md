@@ -35,4 +35,4 @@ pnpm dist
 
 ## 当前阶段
 
-M1 工程骨架与基础动作。详细任务见 `docs/M1-TASK.md`；M0 结果见 `M0-REPORT.md`。
+M2 手势、火把、关闭紫粒子、伸懒腰。详细任务见 `docs/M2-TASK.md`；M1 结果见 `M1-REPORT.md`。
