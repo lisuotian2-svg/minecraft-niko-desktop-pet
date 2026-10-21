@@ -2,6 +2,11 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [未发布]
+
+- **品牌更名**：对外名称统一为「Minecraft OneShot 桌宠」，README 标题、横幅、仓库描述同步更新。
+- 补充《OneShot》角色（Niko）的版权与免责说明：非官方同人作品，角色版权归 Future Cat LLC 所有。
+
 ## [0.1.0] - 2026-10-21
 
 首个公开版本。

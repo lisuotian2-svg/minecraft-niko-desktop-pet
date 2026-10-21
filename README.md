@@ -1,4 +1,4 @@
-# Niko Pet 3D
+# Minecraft OneShot 桌宠
 
 <p align="center">
   <img src="docs/screenshots/niko-banner.png" alt="Niko Pet 3D —— Minecraft 猫耳女巫桌宠" width="100%">
@@ -11,7 +11,7 @@
   <img alt="Code license" src="https://img.shields.io/badge/code%20license-MIT-3DA639">
 </p>
 
-一个慵懒的 3D Minecraft 桌宠：把 **64×64 Slim 双层皮肤**实时渲染成可动的 3D 角色，待在 Windows 11 任务栏上方——散步、眨眼、东张西望、坐下打盹、伸懒腰、掏面包啃、屏幕变暗时举起火把。
+一个慵懒的 OneShot × Minecraft 风格 3D 桌宠：把 **64×64 Slim 双层皮肤**实时渲染成可动的 3D 角色——Niko，《OneShot》里那只猫耳女巫。她待在 Windows 11 任务栏上方，散步、眨眼、东张西望、坐下打盹、伸懒腰、掏面包啃、屏幕变暗时举起火把。
 
 - 角色永久固定为 **64×64 Minecraft Slim 双层皮肤**，保留像素外观、贴图 UV 与内外层结构，只在此基础上叠加骨骼与次级动作。
 - 桌面上**没有任何文字、气泡或名字牌**；显示/隐藏、设置、拍照、退出都在托盘和设置窗口里。
@@ -26,7 +26,7 @@
   <img src="docs/screenshots/niko-model.png" alt="Niko 的 64×64 Slim 双层皮肤 3D 模型" width="180">
 </p>
 
-- 皮肤固定为 **64×64 RGBA、Slim（3px 手臂）、双层**，Three.js + skinview3d 按原贴图 UV 渲染，保留内外层结构，不改贴图、不替换模型。
+- 皮肤固定为 **64×64 RGBA、Slim（3px 手臂）、双层**，Three.js + skinview3d 按原贴图 UV 渲染，保留内外层结构，不改贴图、不替换模型。角色是《OneShot》的 Niko，模型按 Minecraft 皮肤格式重绘。
 - 固定 3/4 视角，走路时轻微转身；呼吸、眨眼、头部跟随鼠标、四肢摆动都只叠加在原有像素模型上。
 - 桌宠窗口不绘制任何文字、气泡或名字牌，调试信息只写日志。
 
@@ -148,7 +148,7 @@ pnpm typecheck  # 只做类型检查
 
 | 路径 | 内容 | 授权 |
 |---|---|---|
-| `public/assets/skin/niko.png` | 64×64 RGBA、Slim（3px 手臂）、双层 | 项目所有者提供的皮肤贴图 |
+| `public/assets/skin/niko.png` | 64×64 RGBA、Slim（3px 手臂）、双层 | 项目所有者提供的贴图（角色 Niko 来自《OneShot》） |
 | `public/assets/vanilla/sounds/**` | Minecraft Java 1.20.1 原声（脚步、猫呼噜、咀嚼、火把、末影、点击……） | © Mojang Studios / Microsoft，非 MIT |
 | `public/assets/vanilla/textures/**` | 面包、火把、爱心、火焰、粒子贴图 | © Mojang Studios / Microsoft，非 MIT |
 | `public/assets/whale/Ya1.mp3`、`Ya2.mp3` | 按下 / 松开点击音 | 来自 `dsh-whale-widget`，as-is，非 MIT |
@@ -226,7 +226,7 @@ docs/         需求、技术方案、决策记录、素材清单、QA 与开发
 ## 许可与免责声明
 
 - **代码**：MIT，见 [LICENSE](LICENSE)。
-- **素材**：Minecraft 音效与贴图 © Mojang Studios / Microsoft，**不在 MIT 授权范围内**；`dsh-whale-widget` 的点击音效按原插件 as-is 提供，不可再许可；皮肤贴图由项目所有者提供。第三方素材清单与来源见 [NOTICE.md](NOTICE.md)。
-- 本项目是**非官方**的个人作品，与 Mojang Studios、Microsoft、DeepSeek 均无关联，也未获其背书。
+- **素材**：Minecraft 音效与贴图 © Mojang Studios / Microsoft，**不在 MIT 授权范围内**；Niko 角色来自游戏《OneShot》，版权归其创作者（Future Cat LLC）所有，皮肤贴图由项目所有者提供；`dsh-whale-widget` 的点击音效按原插件 as-is 提供，不可再许可。第三方素材清单与来源见 [NOTICE.md](NOTICE.md)。
+- 本项目是**非官方**的个人作品，与 Mojang Studios、Microsoft、Future Cat LLC、DeepSeek 均无关联，也未获其背书。
 - Minecraft 素材仅用于个人、非商业的桌宠展示；如果你要公开分发、商用或做衍生发布，请先替换为自有素材，或取得权利方许可。
 - 若权利方认为本仓库内容不当，请通过 issue 联系，我会立即移除相关素材。

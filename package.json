@@ -2,7 +2,7 @@
   "name": "niko-pet-3d",
   "version": "0.1.0",
   "private": true,
-  "description": "Minecraft 猫耳女巫 Niko 的 Windows 11 3D 桌宠：Electron + Three.js + 64×64 Slim 双层皮肤",
+  "description": "Minecraft OneShot 桌宠：《OneShot》Niko 的 Windows 11 3D 桌宠，Electron + Three.js + 64×64 Slim 双层皮肤",
   "main": "./out/main/index.js",
   "author": "lisuotian2-svg",
   "license": "MIT",
