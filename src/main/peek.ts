@@ -12,13 +12,14 @@ import {
   createPeekPlacement,
   enterProgress,
   leaveProgress,
-  nextPeekIntervalMs,
   peekBoundsAt,
   peekHoldMs,
   pickPeekEdge,
   type PeekPlacement
 } from '../shared/peek'
+import type { PeekFrequency } from '../shared/settings'
 import type { DetectorState } from './fullscreen'
+import { nextPeekIntervalForFrequency } from './peek-frequency'
 import type { Logger } from './logger'
 import { PET_WINDOW_SIZE, type PetWindowController } from './pet-window'
 
@@ -66,6 +67,8 @@ export class PeekController {
   private readonly random: () => number
   private readonly now: () => number
   private enabled = true
+  private frequency: PeekFrequency = 'standard'
+  private lastDetectorState: DetectorState | null = null
   private active = false
   private displayId: number | null = null
   private edge: PeekEdge = 'bottom'
@@ -102,6 +105,7 @@ export class PeekController {
   /** Called by FullscreenDetector on every debounced detection change. */
   setDetectorState(state: DetectorState): void {
     if (this.disposed) return
+    this.lastDetectorState = state
     if (!this.enabled) {
       if (this.active) this.exitFullscreen()
       return
@@ -141,8 +145,19 @@ export class PeekController {
   }
 
   setEnabled(enabled: boolean): void {
+    if (this.disposed || this.enabled === enabled) return
     this.enabled = enabled
-    if (!enabled && this.active) this.exitFullscreen()
+    if (!enabled) {
+      if (this.active) this.exitFullscreen()
+    } else if (this.lastDetectorState) {
+      this.setDetectorState(this.lastDetectorState)
+    }
+  }
+
+  setFrequency(frequency: PeekFrequency): void {
+    if (this.disposed || this.frequency === frequency) return
+    this.frequency = frequency
+    if (this.active && this.phase === 'hidden') this.scheduleNext()
   }
 
   getState(): FullscreenState {
@@ -249,7 +264,7 @@ export class PeekController {
     this.scheduleNext()
   }
 
-  private scheduleNext(delayMs = nextPeekIntervalMs(this.random)): void {
+  private scheduleNext(delayMs = nextPeekIntervalForFrequency(this.frequency, this.random)): void {
     this.clearNextTimer()
     if (!this.active || !this.pet.isVisible() || this.pet.isClosing() || this.phase !== 'hidden') return
     this.nextTimer = setTimeout(() => {

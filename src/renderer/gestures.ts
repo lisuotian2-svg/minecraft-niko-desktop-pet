@@ -1,5 +1,6 @@
 import type { SkinViewer } from 'skinview3d'
 import type { PetApi } from '../preload/index'
+import type { DragFootprint } from '../shared/walk'
 import { reboundEase } from '../shared/easing'
 import {
   GestureMachine,
@@ -17,13 +18,13 @@ export interface GestureEffects {
   stopGathering(): void
   close(): Promise<void>
   /** Called before a new press starts so an active action can yield to the gesture. */
-  onGestureStart?(): void
+  /** Return true when this press woke the pet, so release does not also pet it. */
+  onGestureStart?(): boolean | void
 }
 
 export class PetGestures {
   private readonly machine: GestureMachine
   private interactive = false
-  private pressStartedAt = 0
   private pressSequence = 0
   private activePointerId: number | null = null
   private tweenFrame = 0
@@ -31,6 +32,11 @@ export class PetGestures {
   private cursorPollPending = false
   private clockTimer: number | null = null
   private closePromise: Promise<void> | null = null
+  private suppressNextClick = false
+  private pressAnchor = { x: 0, y: 0 }
+  private pressFootprint: DragFootprint | undefined
+  private squashTimer: number | null = null
+  private squashedAt = 0
   private readonly unsubscribeSettings: () => void
 
   constructor(
@@ -57,6 +63,7 @@ export class PetGestures {
     canvas.addEventListener('pointerup', this.onPointerUp)
     canvas.addEventListener('pointercancel', this.onPointerCancel)
     canvas.addEventListener('lostpointercapture', this.onCaptureLost)
+    canvas.addEventListener('contextmenu', this.onContextMenu)
     window.addEventListener('blur', this.onBlur)
   }
 
@@ -83,6 +90,8 @@ export class PetGestures {
     this.unsubscribeSettings()
     this.clearClockTimers()
     this.stopTween()
+    this.clearSquashTimer()
+    this.canvas.removeEventListener('contextmenu', this.onContextMenu)
   }
 
   forceClose(): Promise<void> {
@@ -91,10 +100,12 @@ export class PetGestures {
   }
 
   resetAfterRestore(): void {
+    this.clearSquashTimer()
     this.clearClockTimers()
     this.machine.reset()
     this.activePointerId = null
     this.closePromise = null
+    this.suppressNextClick = false
     this.stopTween()
     this.setScale(1, 1)
     this.animator.setDragging(false)
@@ -137,6 +148,17 @@ export class PetGestures {
     this.tweenFrame = 0
   }
 
+  private clearSquashTimer(): void {
+    if (this.squashTimer !== null) window.clearTimeout(this.squashTimer)
+    this.squashTimer = null
+  }
+
+  private squash(): void {
+    this.stopTween()
+    this.setScale(1.05, 0.88)
+    this.squashedAt = performance.now()
+  }
+
   private rebound(): void {
     this.stopTween()
     const generation = this.tweenGeneration
@@ -160,7 +182,7 @@ export class PetGestures {
   }
 
   /**
-   * One timeout chain driven by GestureMachine.nextDeadline(). The 250 ms drag
+   * One timeout chain driven by GestureMachine.nextDeadline(). The short drag
    * gate, longPressMs, gather offset and close offset all come from the shared
    * state machine; this file no longer duplicates 1500/2400/3000.
    */
@@ -188,19 +210,33 @@ export class PetGestures {
     for (const action of actions) {
       switch (action) {
         case 'press':
-          this.stopTween()
-          this.setScale(1.05, 0.88)
+          // A quick drag should not first push the head down by 12%. Stationary
+          // presses keep the squash feedback, and short clicks pulse on release.
+          this.clearSquashTimer()
+          this.squashedAt = 0
+          this.squashTimer = window.setTimeout(() => {
+            this.squashTimer = null
+            if (this.machine.phase === 'pressed') this.squash()
+          }, 100)
           this.audio.press()
           this.api.log('press')
           break
         case 'click':
-          this.animator.pet()
-          this.api.log('pet reaction')
+          if (this.squashedAt === 0) this.squash()
+          if (!this.suppressNextClick) {
+            this.animator.pet()
+            this.api.log('pet reaction')
+          } else {
+            this.api.log('wake by click')
+          }
+          this.suppressNextClick = false
           break
         case 'dragStart':
           this.clearClockTimers()
+          this.clearSquashTimer()
+          this.rebound()
           this.animator.setDragging(true)
-          this.api.startDrag()
+          this.api.startDrag(this.pressFootprint, this.pressAnchor)
           this.api.log('drag started')
           break
         case 'dragEnd':
@@ -223,6 +259,7 @@ export class PetGestures {
           break
         case 'close':
           this.clearClockTimers()
+          this.clearSquashTimer()
           this.setInteractive(false)
           this.stopTween()
           this.closePromise = this.effects.close().catch((error: unknown) => {
@@ -231,6 +268,7 @@ export class PetGestures {
           this.api.log('close burst')
           break
         case 'release':
+          this.suppressNextClick = false
           this.audio.release()
           this.api.log('release')
           break
@@ -243,16 +281,29 @@ export class PetGestures {
     const now = performance.now()
     const actions = this.machine.press(now, event.screenX, event.screenY)
     if (actions.length === 0) return
+    // CSS pixels match Electron DIP; screenX can use different coordinate spaces
+    // on mixed-DPI monitors, so it is used only for the small movement threshold.
+    this.pressAnchor = { x: event.clientX, y: event.clientY }
+    this.pressFootprint = this.hitTest.dragFootprint() ?? undefined
+    void this.api.stopWalk()
     // Gesture priority: an active renderer action yields before the press starts.
-    this.effects.onGestureStart?.()
+    this.suppressNextClick = this.effects.onGestureStart?.() === true
     event.preventDefault()
     this.activePointerId = event.pointerId
     this.canvas.setPointerCapture(event.pointerId)
     this.pressSequence += 1
-    this.pressStartedAt = now
     this.setInteractive(true)
     this.apply(actions)
     this.scheduleClock()
+  }
+
+  private readonly onContextMenu = (event: MouseEvent): void => {
+    // The transparent canvas has no browser menu. Open settings only when the
+    // actual visible skin is under the right-click, using the same raycast as
+    // left-click and mouse pass-through.
+    event.preventDefault()
+    if (event.button !== 2 || this.machine.isClosing || !this.hitTest.hit(event.clientX, event.clientY)) return
+    this.api.openSettings()
   }
 
   private readonly onPointerMove = (event: PointerEvent): void => {
@@ -278,10 +329,11 @@ export class PetGestures {
     const pointerId = this.activePointerId
     this.activePointerId = null
     this.clearClockTimers()
+    this.clearSquashTimer()
     this.apply(complete ? this.machine.release(performance.now()) : this.machine.cancel())
     if (this.canvas.hasPointerCapture(pointerId)) this.canvas.releasePointerCapture(pointerId)
     if (this.machine.isClosing) return
-    const remaining = Math.max(0, 32 - (performance.now() - this.pressStartedAt))
+    const remaining = this.squashedAt === 0 ? 0 : Math.max(0, 32 - (performance.now() - this.squashedAt))
     const sequence = this.pressSequence
     window.setTimeout(() => {
       if (!this.machine.isPressed && sequence === this.pressSequence) this.rebound()

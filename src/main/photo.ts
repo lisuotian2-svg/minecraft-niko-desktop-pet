@@ -17,7 +17,7 @@ function timestamp(): string {
 }
 
 /** Capture the display containing the pet, including the desktop behind it. */
-export async function capturePhoto(display: Display, nickname: string): Promise<string> {
+export async function capturePhoto(display: Display, nickname: string, customDirectory = '', prefix = '', suffix = ''): Promise<{ path: string; fallback: boolean }> {
   const width = Math.max(1, Math.round(display.size.width * display.scaleFactor))
   const height = Math.max(1, Math.round(display.size.height * display.scaleFactor))
   const sources = await desktopCapturer.getSources({
@@ -25,12 +25,36 @@ export async function capturePhoto(display: Display, nickname: string): Promise<
     thumbnailSize: { width, height },
     fetchWindowIcons: false
   })
-  const source = sources.find((item) => item.display_id === String(display.id)) ?? sources[0]
+  const source = sources.find((item) => item.display_id === String(display.id)) ?? (suffix ? undefined : sources[0])
   if (!source || source.thumbnail.isEmpty()) throw new Error('No screen source available')
-  const directory = join(app.getPath('pictures'), 'NikoPet')
-  await mkdir(directory, { recursive: true })
-  const safeName = nickname.replace(/[^a-zA-Z0-9\u4e00-\u9fa5_-]/g, '').slice(0, 16) || 'Niko'
-  const file = join(directory, `${safeName}-${timestamp()}.png`)
-  await writeFile(file, source.thumbnail.toPNG())
-  return file
+  const defaultDirectory = join(app.getPath('pictures'), 'NikoPet')
+  const safeName = (prefix || nickname).replace(/[^a-zA-Z0-9\u4e00-\u9fa5_-]/g, '').slice(0, 24) || 'Niko'
+  const filename = `${safeName}-${timestamp()}${suffix}.png`
+  const bytes = source.thumbnail.toPNG()
+  if (customDirectory) {
+    try {
+      await mkdir(customDirectory, { recursive: true })
+      const path = join(customDirectory, filename)
+      await writeFile(path, bytes)
+      return { path, fallback: false }
+    } catch {
+      // A valid screenshot must still be saved when a selected drive disappears.
+    }
+  }
+  await mkdir(defaultDirectory, { recursive: true })
+  const path = join(defaultDirectory, filename)
+  await writeFile(path, bytes)
+  return { path, fallback: Boolean(customDirectory) }
+}
+
+export async function capturePhotos(displays: Display[], nickname: string, customDirectory = '', prefix = ''): Promise<{ paths: string[]; fallback: boolean }> {
+  const paths: string[] = []
+  let fallback = false
+  for (const display of displays) {
+    const suffix = displays.length > 1 ? `-display${display.id}` : ''
+    const result = await capturePhoto(display, nickname, customDirectory, prefix, suffix)
+    paths.push(result.path)
+    fallback ||= result.fallback
+  }
+  return { paths, fallback }
 }

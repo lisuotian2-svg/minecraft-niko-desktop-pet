@@ -48,3 +48,20 @@ it('clamps updates and serializes overlapping saves without losing fields', asyn
   expect(saved.volume).toBe(0)
   expect((await readdir(path)).some((name) => name.endsWith('.tmp'))).toBe(false)
 })
+
+it('notifies subscribers after saving peek settings and supports unsubscribe', async () => {
+  const { path, store } = await temporaryStore()
+  await store.load()
+  const seen: Array<{ fullscreenPeek: boolean; peekFrequency: string }> = []
+  const unsubscribe = store.subscribe((settings) => {
+    seen.push({ fullscreenPeek: settings.fullscreenPeek, peekFrequency: settings.peekFrequency })
+  })
+
+  await store.update({ fullscreenPeek: false, peekFrequency: 'high' })
+  expect(seen).toEqual([{ fullscreenPeek: false, peekFrequency: 'high' }])
+  expect(JSON.parse(await readFile(join(path, 'settings.json'), 'utf8'))).toMatchObject({ fullscreenPeek: false, peekFrequency: 'high' })
+
+  unsubscribe()
+  await store.update({ fullscreenPeek: true })
+  expect(seen).toHaveLength(1)
+})

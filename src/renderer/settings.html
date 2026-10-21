@@ -8,24 +8,113 @@
   <body>
     <main class="settings">
       <header>
-        <h1>Niko Pet 3D</h1>
+        <div>
+          <h1>Niko Pet 3D</h1>
+          <p>右键角色可随时回到这里</p>
+        </div>
         <span id="version">版本</span>
       </header>
-      <label class="control" for="size">
-        <span>角色大小</span>
-        <output id="size-value" for="size">220 px</output>
-      </label>
-      <input id="size" type="range" min="80" max="500" step="10" value="220" />
-      <label class="control" for="volume">
-        <span>点击音量</span>
-        <output id="volume-value" for="volume">40%</output>
-      </label>
-      <input id="volume" type="range" min="0" max="100" step="1" value="40" />
-      <p id="status" role="status" aria-live="polite"></p>
-      <footer>
-        <button id="close" type="button">关闭</button>
-        <button id="save" class="primary" type="button">保存</button>
-      </footer>
+      <nav class="section-nav" aria-label="设置分类">
+        <a href="#general-title">外观声音</a><a href="#behavior-title">自主行为</a>
+        <a href="#effects-title">特效性能</a><a href="#startup-title">启动照片</a>
+        <a href="#interaction-title">互动环境</a><a href="#fullscreen-title">全屏探头</a>
+      </nav>
+      <form id="settings-form">
+        <section aria-labelledby="general-title">
+          <h2 id="general-title">外观与声音</h2>
+          <label class="control" for="size"><span>角色大小</span><output id="size-value" for="size">220 px</output></label>
+          <input id="size" type="range" min="80" max="500" step="1" value="220" />
+          <label class="control" for="opacity"><span>角色透明度</span><output id="opacity-value" for="opacity">100%</output></label>
+          <input id="opacity" type="range" min="30" max="100" step="5" value="100" />
+          <label class="control" for="nickname"><span>昵称</span></label>
+          <input id="nickname" type="text" maxlength="24" value="Niko" autocomplete="off" />
+          <p class="hint">用于照片文件名，不显示在桌面上。</p>
+          <label class="control" for="volume"><span>音量</span><output id="volume-value" for="volume">40%</output></label>
+          <input id="volume" type="range" min="0" max="100" step="1" value="40" />
+          <label class="toggle"><input id="muted" type="checkbox" /><span>静音</span></label>
+          <label class="toggle"><input id="click-sounds" type="checkbox" /><span>点击时播放音效</span></label>
+          <label class="toggle"><input id="action-sounds" type="checkbox" /><span>动作与脚步音效</span></label>
+        </section>
+
+        <section aria-labelledby="behavior-title">
+          <h2 id="behavior-title">自主行为</h2>
+          <label class="control" for="activity-level"><span>随机动作频率</span></label>
+          <select id="activity-level"><option value="low">低</option><option value="normal">普通</option><option value="high">活跃</option></select>
+          <p class="hint">控制随机伸懒腰和吃面包；散步频率保持不变。</p>
+          <label class="toggle"><input id="random-actions" type="checkbox" /><span>随机伸懒腰和吃面包</span></label>
+          <label class="toggle"><input id="walk-enabled" type="checkbox" /><span>自动散步</span></label>
+          <label class="control" for="walk-frequency"><span>散步频率</span></label>
+          <select id="walk-frequency"><option value="low">较少（6–12 分钟）</option><option value="normal">普通（3–8 分钟）</option><option value="high">较多（1–3 分钟）</option></select>
+          <label class="control" for="walk-speed"><span>散步速度</span><output id="walk-speed-value" for="walk-speed">100%</output></label>
+          <input id="walk-speed" type="range" min="50" max="200" step="10" value="100" />
+          <label class="toggle"><input id="sleep-enabled" type="checkbox" /><span>空闲后睡觉</span></label>
+          <label class="control" for="sleep-minutes"><span>睡眠等待时间</span><output id="sleep-value" for="sleep-minutes">6 分钟</output></label>
+          <input id="sleep-minutes" type="range" min="1" max="60" step="1" value="6" />
+          <p class="hint">睡时熄灭火把且不会自动恢复；单击角色或使用“叫醒”快捷键可唤醒。</p>
+        </section>
+
+        <section aria-labelledby="effects-title">
+          <h2 id="effects-title">特效与性能</h2>
+          <label class="toggle"><input id="particles" type="checkbox" /><span>喂食与火把粒子</span></label>
+          <p class="hint">控制面包屑、喂食爱心和小火星；普通单击粒子仍停用，关闭紫粒子始终保留。</p>
+          <label class="control" for="performance-mode"><span>画面性能</span></label>
+          <select id="performance-mode"><option value="simple">简约 · 30 帧 / 无阴影 / 少粒子</option><option value="normal">普通 · 30 帧 / 阴影</option><option value="gorgeous">华丽 · 60 帧 / 完整粒子</option></select>
+          <label class="toggle"><input id="shadow-enabled" type="checkbox" /><span>地面阴影</span></label>
+          <label class="toggle"><input id="idle-micro-motion" type="checkbox" /><span>待机小动作</span></label>
+          <p class="hint">简约档固定关闭阴影和待机小动作；其他档可分别控制。</p>
+        </section>
+
+        <section aria-labelledby="startup-title">
+          <h2 id="startup-title">启动与照片</h2>
+          <label class="toggle"><input id="autostart" type="checkbox" /><span>Windows 开机自启</span></label>
+          <label class="toggle"><input id="start-hidden" type="checkbox" /><span>开机自启时隐藏到托盘</span></label>
+          <label class="control" for="photo-dir"><span>照片保存目录</span></label>
+          <div class="path-row"><input id="photo-dir" type="text" readonly placeholder="图片\\NikoPet（默认）" /><button id="choose-photo-dir" type="button">选择文件夹</button></div>
+          <button id="reset-photo-dir" type="button" class="subtle">恢复默认目录</button>
+          <label class="control" for="photo-prefix"><span>照片文件名前缀</span></label>
+          <input id="photo-prefix" type="text" maxlength="24" placeholder="留空时使用昵称" autocomplete="off" />
+          <label class="control" for="photo-scope"><span>截图范围</span></label>
+          <select id="photo-scope"><option value="current">Niko 所在显示器</option><option value="all">全部显示器（每屏一张）</option></select>
+          <label class="toggle"><input id="photo-notify" type="checkbox" /><span>照片保存成功后通知</span></label>
+          <p class="hint">自定义目录不可写时，自动保存到默认目录并提示。</p>
+        </section>
+
+        <section aria-labelledby="interaction-title">
+          <h2 id="interaction-title">互动与环境</h2>
+          <label class="control" for="long-press-ms"><span>长按切换火把</span><output id="long-press-value" for="long-press-ms">1.5 秒</output></label>
+          <input id="long-press-ms" type="range" min="1000" max="2000" step="100" value="1500" />
+          <p class="hint">继续按住约 1.5 秒会触发收起桌宠。</p>
+          <label class="toggle"><input id="auto-torch" type="checkbox" /><span>暗处自动举火把</span></label>
+          <label class="control" for="dark-threshold"><span>亮度阈值</span><output id="threshold-value" for="dark-threshold">30%</output></label>
+          <input id="dark-threshold" type="range" min="10" max="60" step="1" value="30" />
+          <p class="hint">设备无法读取亮度时，仍可长按手动切换火把。</p>
+        </section>
+
+        <section aria-labelledby="fullscreen-title">
+          <h2 id="fullscreen-title">全屏探头</h2>
+          <label class="toggle"><input id="fullscreen-peek" type="checkbox" /><span>全屏时偶尔探头</span></label>
+          <label class="control" for="peek-frequency"><span>探头频率</span></label>
+          <select id="peek-frequency">
+            <option value="low">较少（45–90 秒）</option>
+            <option value="standard">普通（20–45 秒）</option>
+            <option value="high">较多（10–25 秒）</option>
+          </select>
+          <p class="hint">保存后立即生效；关闭时退出当前探头。</p>
+        </section>
+
+        <details>
+          <summary>快捷键</summary>
+          <p class="hint">使用 Electron 格式，例如 Control+Alt+P。清空可禁用；角色动作尚未完成的快捷键暂不可编辑。</p>
+          <div id="hotkeys"></div>
+          <button id="reset-hotkeys" type="button" class="subtle">填入默认快捷键</button>
+        </details>
+
+        <p id="status" role="status" aria-live="polite"></p>
+        <footer>
+          <button id="close" type="button">关闭</button>
+          <button id="save" class="primary" type="submit">保存设置</button>
+        </footer>
+      </form>
     </main>
     <script type="module" src="./settings.ts"></script>
   </body>

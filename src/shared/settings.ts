@@ -10,6 +10,10 @@ import {
 /** How often the fullscreen peek cycle runs. */
 export type PeekFrequency = 'low' | 'standard' | 'high'
 export const PEEK_FREQUENCIES: readonly PeekFrequency[] = Object.freeze(['low', 'standard', 'high'])
+export type WalkFrequency = 'low' | 'normal' | 'high'
+export const WALK_FREQUENCIES: readonly WalkFrequency[] = Object.freeze(['low', 'normal', 'high'])
+export type PhotoScope = 'current' | 'all'
+export const PHOTO_SCOPES: readonly PhotoScope[] = Object.freeze(['current', 'all'])
 
 /**
  * Persisted settings schema v2.
@@ -34,6 +38,15 @@ export interface PetSettings {
   clickSounds: boolean
   particles: boolean
   photoDir: string
+  photoPrefix: string
+  photoNotify: boolean
+  photoScope: PhotoScope
+  walkEnabled: boolean
+  walkFrequency: WalkFrequency
+  walkSpeedMultiplier: number
+  opacity: number
+  shadowEnabled: boolean
+  idleMicroMotion: boolean
   lastDisplayId?: number
   lastX?: number
 
@@ -67,6 +80,15 @@ export const DEFAULT_SETTINGS: Readonly<PetSettings> = Object.freeze({
   clickSounds: true,
   particles: true,
   photoDir: '',
+  photoPrefix: '',
+  photoNotify: false,
+  photoScope: 'current',
+  walkEnabled: true,
+  walkFrequency: 'normal',
+  walkSpeedMultiplier: 1,
+  opacity: 1,
+  shadowEnabled: true,
+  idleMicroMotion: true,
   activityLevel: 'low',
   performanceMode: 'normal',
   randomActions: true,
@@ -74,7 +96,7 @@ export const DEFAULT_SETTINGS: Readonly<PetSettings> = Object.freeze({
   fullscreenPeek: true,
   peekFrequency: 'standard',
   sleepEnabled: true,
-  sleepAfterIdleSec: 1200,
+  sleepAfterIdleSec: 360,
   wakeLieInSec: 3,
   closeSignEnabled: true,
   startHidden: false,
@@ -112,17 +134,20 @@ function hasValidFieldTypes(input: Record<string, unknown>): boolean {
   const booleans = [
     'firstRun', 'muted', 'autostart', 'autoTorch', 'clickSounds', 'particles',
     'randomActions', 'actionSounds', 'fullscreenPeek', 'sleepEnabled',
-    'closeSignEnabled', 'startHidden'
+    'closeSignEnabled', 'startHidden', 'photoNotify', 'walkEnabled',
+    'shadowEnabled', 'idleMicroMotion'
   ]
   const numbers = [
     'size', 'volume', 'longPressMs', 'darkThreshold', 'lastDisplayId', 'lastX',
-    'sleepAfterIdleSec', 'wakeLieInSec'
+    'sleepAfterIdleSec', 'wakeLieInSec', 'walkSpeedMultiplier', 'opacity'
   ]
-  const strings = ['nickname', 'photoDir']
+  const strings = ['nickname', 'photoDir', 'photoPrefix']
   const enums: ReadonlyArray<readonly [string, readonly string[]]> = [
     ['activityLevel', ACTIVITY_LEVELS],
     ['performanceMode', PERFORMANCE_MODES],
-    ['peekFrequency', PEEK_FREQUENCIES]
+    ['peekFrequency', PEEK_FREQUENCIES],
+    ['walkFrequency', WALK_FREQUENCIES],
+    ['photoScope', PHOTO_SCOPES]
   ]
   return booleans.every((key) => input[key] === undefined || typeof input[key] === 'boolean') &&
     numbers.every((key) => input[key] === undefined || (typeof input[key] === 'number' && Number.isFinite(input[key]))) &&
@@ -151,6 +176,7 @@ export function parseSettings(value: unknown): PetSettings {
   const input = isRecord(value) ? value : {}
   const nickname = typeof input.nickname === 'string' ? input.nickname.slice(0, 24) : DEFAULT_SETTINGS.nickname
   const photoDir = typeof input.photoDir === 'string' ? input.photoDir : DEFAULT_SETTINGS.photoDir
+  const photoPrefix = typeof input.photoPrefix === 'string' ? input.photoPrefix.slice(0, 24) : DEFAULT_SETTINGS.photoPrefix
   // v1 files were written with autostart=false by default. A missing field in a
   // v1 file therefore means "keep the old default", not "turn it on now".
   const migratingV1 = input.version === 1
@@ -169,6 +195,15 @@ export function parseSettings(value: unknown): PetSettings {
     clickSounds: booleanOr(input.clickSounds, DEFAULT_SETTINGS.clickSounds),
     particles: booleanOr(input.particles, DEFAULT_SETTINGS.particles),
     photoDir,
+    photoPrefix,
+    photoNotify: booleanOr(input.photoNotify, DEFAULT_SETTINGS.photoNotify),
+    photoScope: enumOr(input.photoScope, PHOTO_SCOPES, DEFAULT_SETTINGS.photoScope),
+    walkEnabled: booleanOr(input.walkEnabled, DEFAULT_SETTINGS.walkEnabled),
+    walkFrequency: enumOr(input.walkFrequency, WALK_FREQUENCIES, DEFAULT_SETTINGS.walkFrequency),
+    walkSpeedMultiplier: boundedNumber(input.walkSpeedMultiplier, DEFAULT_SETTINGS.walkSpeedMultiplier, 0.5, 2),
+    opacity: boundedNumber(input.opacity, DEFAULT_SETTINGS.opacity, 0.3, 1),
+    shadowEnabled: booleanOr(input.shadowEnabled, DEFAULT_SETTINGS.shadowEnabled),
+    idleMicroMotion: booleanOr(input.idleMicroMotion, DEFAULT_SETTINGS.idleMicroMotion),
     activityLevel: enumOr(input.activityLevel, ACTIVITY_LEVELS, DEFAULT_SETTINGS.activityLevel),
     performanceMode: enumOr(input.performanceMode, PERFORMANCE_MODES, DEFAULT_SETTINGS.performanceMode),
     randomActions: booleanOr(input.randomActions, DEFAULT_SETTINGS.randomActions),

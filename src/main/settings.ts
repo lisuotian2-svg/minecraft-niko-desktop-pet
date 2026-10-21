@@ -8,6 +8,7 @@ export class SettingsStore {
   private settings: PetSettings = { ...DEFAULT_SETTINGS, hotkeys: { ...DEFAULT_SETTINGS.hotkeys } }
   private pendingWrite: Promise<void> = Promise.resolve()
   private pendingUpdate: Promise<void> = Promise.resolve()
+  private readonly listeners = new Set<(settings: PetSettings) => void>()
 
   constructor(userDataPath: string, private readonly logger: Logger) {
     this.file = join(userDataPath, 'settings.json')
@@ -46,6 +47,11 @@ export class SettingsStore {
     return { ...this.settings, hotkeys: { ...this.settings.hotkeys } }
   }
 
+  subscribe(listener: (settings: PetSettings) => void): () => void {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
   update(patch: Partial<PetSettings>): Promise<PetSettings> {
     if (typeof patch !== 'object' || patch === null || Array.isArray(patch)) {
       return Promise.reject(new Error('Invalid settings patch'))
@@ -54,6 +60,13 @@ export class SettingsStore {
       const updated = parseSettings({ ...this.settings, ...patch })
       await this.write(updated)
       this.settings = updated
+      for (const listener of this.listeners) {
+        try {
+          listener(this.get())
+        } catch (error: unknown) {
+          this.logger.warn(String(error))
+        }
+      }
       this.logger.info(`settings saved: size=${updated.size}, volume=${updated.volume}`)
       return this.get()
     })

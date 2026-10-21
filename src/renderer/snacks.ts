@@ -1,3 +1,4 @@
+import { petHeartOffsets, type HeartArea } from '../shared/pet-hearts'
 /** Tiny canvas overlay for bread crumbs and pixel hearts. */
 export interface SnackPoint {
   x: number
@@ -6,7 +7,7 @@ export interface SnackPoint {
 
 interface Snack {
   active: boolean
-  kind: 'crumb' | 'heart'
+  kind: 'crumb' | 'heart' | 'petHeart' | 'spark'
   x: number
   y: number
   vx: number
@@ -45,6 +46,9 @@ export class SnackParticles {
   private width = 0
   private height = 0
   private ratio = 0
+  private density = 1
+
+  setDensity(value: number): void { this.density = Math.max(0, Math.min(1, value)) }
 
   constructor() {
     const context = this.canvas.getContext('2d', { alpha: true })
@@ -58,7 +62,7 @@ export class SnackParticles {
 
   crumbs(origin: SnackPoint): void {
     const center = this.toScreen(origin)
-    for (let index = 0; index < 8; index += 1) {
+    for (let index = 0; index < Math.ceil(8 * this.density); index += 1) {
       const particle = this.take()
       if (!particle) break
       particle.active = true
@@ -77,7 +81,7 @@ export class SnackParticles {
 
   hearts(origin: SnackPoint): void {
     const center = this.toScreen(origin)
-    for (let index = 0; index < 3; index += 1) {
+    for (let index = 0; index < Math.ceil(3 * this.density); index += 1) {
       const particle = this.take()
       if (!particle) break
       particle.active = true
@@ -89,6 +93,45 @@ export class SnackParticles {
       particle.age = 0
       particle.lifetime = random(0.9, 1.4)
       particle.size = random(5, 8)
+      particle.color = HEART_COLORS[Math.floor(Math.random() * HEART_COLORS.length)] ?? HEART_COLORS[0]!
+    }
+    this.ensureFrame()
+  }
+
+  spark(origin: SnackPoint): void {
+    if (Math.random() > this.density) return
+    const particle = this.take()
+    if (!particle) return
+    const center = this.toScreen(origin)
+    particle.active = true
+    particle.kind = 'spark'
+    particle.x = center.x + random(-4, 4)
+    particle.y = center.y + random(-3, 2)
+    particle.vx = random(-14, 14)
+    particle.vy = random(-38, -22)
+    particle.age = 0
+    particle.lifetime = random(0.35, 0.65)
+    particle.size = random(2, 4)
+    particle.color = Math.random() < 0.5 ? '#ffcb65' : '#ff934e'
+    this.ensureFrame()
+  }
+
+  petHearts(area: HeartArea): void {
+    const center = this.toScreen(area)
+    const scale = Math.max(0.35, Math.min(1.4, area.height / 240))
+    for (const offset of petHeartOffsets(area)) {
+      const particle = this.take()
+      if (!particle) break
+      particle.active = true
+      particle.kind = 'petHeart'
+      particle.x = center.x + offset.x
+      particle.y = center.y + offset.y
+      particle.vx = offset.x * 0.025 + random(-4, 4) * scale
+      particle.vy = random(-14, -9) * scale
+      // Stagger appearance without timers or allocations during animation.
+      particle.age = -random(0, 0.22)
+      particle.lifetime = random(1.15, 1.75)
+      particle.size = random(4, 7) * scale
       particle.color = HEART_COLORS[Math.floor(Math.random() * HEART_COLORS.length)] ?? HEART_COLORS[0]!
     }
     this.ensureFrame()
@@ -137,7 +180,8 @@ export class SnackParticles {
         particle.active = false
         continue
       }
-      particle.vy += 260 * delta
+      if (particle.age < 0) continue
+      if (particle.kind !== 'petHeart' && particle.kind !== 'spark') particle.vy += 260 * delta
       particle.x += particle.vx * delta
       particle.y += particle.vy * delta
     }
@@ -156,7 +200,7 @@ export class SnackParticles {
       const y = particle.y - window.screenY
       context.globalAlpha = Math.max(0, Math.min(1, alpha))
       context.fillStyle = particle.color
-      if (particle.kind === 'crumb') {
+      if (particle.kind === 'crumb' || particle.kind === 'spark') {
         context.fillRect(Math.round(x), Math.round(y), Math.max(1, Math.round(particle.size)), Math.max(1, Math.round(particle.size)))
       } else {
         const pixel = Math.max(1, Math.round(particle.size / 3))

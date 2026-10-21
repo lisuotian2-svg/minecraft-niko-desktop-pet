@@ -1,16 +1,21 @@
 import { app, BrowserWindow, screen } from 'electron'
 import { join } from 'node:path'
+import { DragEdgePush, dragPosition, isPetOnAnyDisplay, isUsableDragCoordinate } from '../shared/drag'
 import {
   bottomWindowY,
+  clampDragPosition,
   clampWindowX,
   nextWalkDelayMs,
+  roundWindowCoordinate,
   stepWalk,
   walkDurationMs,
   walkSpeed,
   type WalkDirection,
-  type WalkArea
+  type WalkArea,
+  type DragFootprint
 } from '../shared/walk'
 import type { Logger } from './logger'
+import type { WalkFrequency } from '../shared/settings'
 
 export const PET_WINDOW_SIZE = 420
 
@@ -26,6 +31,9 @@ export class PetWindowController {
   private interactive = false
   private timer: ReturnType<typeof setInterval> | null = null
   private x = 0
+  private y = 0
+  private manuallyPlaced = false
+  private footprintRatio: DragFootprint | null = null
   private direction: WalkDirection = 1
   private walking = false
   private nextWalkAt = 0
@@ -38,6 +46,8 @@ export class PetWindowController {
   private dragging = false
   private dragTimer: ReturnType<typeof setInterval> | null = null
   private dragOffset = { x: 0, y: 0 }
+  private dragEdgePush = new DragEdgePush()
+  private lastDragWarnAt = 0
   private closing = false
   private closeTimer: ReturnType<typeof setTimeout> | null = null
   private closeScene: CloseScene | null = null
@@ -48,20 +58,25 @@ export class PetWindowController {
   private resizeSuppressUntil = 0
   private lastResizeWarnAt = 0
   private walkPaused = false
+  private walkEnabled = true
+  private walkFrequency: WalkFrequency = 'normal'
+  private walkSpeedMultiplier = 1
+  private opacity = 1
 
-  constructor(private readonly logger: Logger, petSize = 220) {
+  constructor(private readonly logger: Logger, petSize = 220, private readonly startHidden = false) {
     this.requestedPetSize = petSize
   }
 
   create(): BrowserWindow {
     const area = screen.getPrimaryDisplay().workArea
     this.windowSize = sizeForArea(this.requestedPetSize, area)
-    this.x = Math.round(area.x + (area.width - this.windowSize) / 2)
+    this.x = roundWindowCoordinate(area.x + (area.width - this.windowSize) / 2)
+    this.y = bottomWindowY(area, this.windowSize)
     this.win = new BrowserWindow({
       width: this.windowSize,
       height: this.windowSize,
       x: this.x,
-      y: bottomWindowY(area, this.windowSize),
+      y: this.y,
       transparent: true,
       frame: false,
       hasShadow: false,
@@ -80,13 +95,14 @@ export class PetWindowController {
     })
 
     const win = this.win
+    win.setOpacity(this.opacity)
     win.setAlwaysOnTop(true, 'screen-saver')
     win.setIgnoreMouseEvents(true, { forward: true })
     this.logger.info('pet window created; interactive=false')
     win.webContents.once('did-finish-load', () => {
       this.logger.info('pet renderer loaded')
       if (!win.isDestroyed()) {
-        win.showInactive()
+        if (!this.startHidden) win.showInactive()
         this.sendWalkingState()
         // Renderer listeners can attach slightly after did-finish-load on some builds.
         setTimeout(() => {
@@ -96,6 +112,14 @@ export class PetWindowController {
     })
     win.webContents.on('did-fail-load', (_event, code, description) => {
       this.logger.error(`pet renderer load failed (${code}): ${description}`)
+    })
+    // A renderer reload can discard pointer capture before it sends drag:end.
+    // Settle the native window immediately so it does not keep following the cursor.
+    win.webContents.on('did-start-loading', () => {
+      if (this.dragging) this.endDrag()
+    })
+    win.webContents.on('render-process-gone', () => {
+      if (this.dragging) this.endDrag()
     })
     win.on('close', (event) => {
       if (this.quitting) return
@@ -138,7 +162,7 @@ export class PetWindowController {
       this.resizeSuppressUntil = now + 250
       win.setBounds({
         x: bounds.x,
-        y: bottomWindowY(screen.getDisplayMatching(bounds).workArea, this.windowSize),
+        y: this.manuallyPlaced ? bounds.y : bottomWindowY(screen.getDisplayMatching(bounds).workArea, this.windowSize),
         width: this.windowSize,
         height: this.windowSize
       }, false)
@@ -158,7 +182,7 @@ export class PetWindowController {
     }
 
     this.lastTickAt = performance.now()
-    this.nextWalkAt = this.lastTickAt + nextWalkDelayMs()
+    this.nextWalkAt = this.lastTickAt + this.nextWalkDelay()
     this.timer = setInterval(() => this.tick(), 1000 / 30)
     return win
   }
@@ -189,6 +213,11 @@ export class PetWindowController {
     return this.getWindow()?.isVisible() ?? false
   }
 
+  setOpacity(value: number): void {
+    this.opacity = Math.max(0.3, Math.min(1, value))
+    this.getWindow()?.setOpacity(this.opacity)
+  }
+
   isPeeking(): boolean {
     return this.peeking
   }
@@ -205,6 +234,17 @@ export class PetWindowController {
     return this.walkPaused
   }
 
+  setWalkingPreferences(enabled: boolean, frequency: WalkFrequency, speedMultiplier: number): void {
+    const changed = this.walkEnabled !== enabled || this.walkFrequency !== frequency
+    this.walkEnabled = enabled
+    this.walkFrequency = frequency
+    this.walkSpeedMultiplier = speedMultiplier
+    if (!enabled && this.walking) this.stopWalk()
+    if (changed) this.nextWalkAt = performance.now() + this.nextWalkDelay()
+  }
+
+  private nextWalkDelay(): number { return nextWalkDelayMs(Math.random, this.walkFrequency) }
+
   /**
    * Pause/resume automatic walking without touching window visibility, drag or
    * peek placement. Pausing stops the current walk and keeps the pet in place;
@@ -218,7 +258,7 @@ export class PetWindowController {
       this.logger.info('pet walking paused')
     } else {
       this.lastTickAt = performance.now()
-      this.nextWalkAt = performance.now() + nextWalkDelayMs()
+      this.nextWalkAt = performance.now() + this.nextWalkDelay()
       this.logger.info('pet walking resumed')
     }
   }
@@ -268,10 +308,11 @@ export class PetWindowController {
     this.peekRestoreBounds = null
     if (win && restore) {
       this.x = restore.x
+      this.y = restore.y
       this.windowSize = restore.width
       this.applyBounds(restore)
     }
-    this.nextWalkAt = performance.now() + nextWalkDelayMs()
+    this.nextWalkAt = performance.now() + this.nextWalkDelay()
     this.reconcileDisplay()
     this.logger.info('pet peek mode left')
   }
@@ -286,7 +327,7 @@ export class PetWindowController {
   }
 
   forceWalk(direction?: WalkDirection): void {
-    if (this.dragging || this.closing || this.peeking || this.walkPaused) return
+    if (this.dragging || this.closing || this.peeking || this.walkPaused || !this.walkEnabled) return
     if (direction !== undefined) this.setDirection(direction)
     const wasWalking = this.walking
     this.walking = true
@@ -303,19 +344,33 @@ export class PetWindowController {
       this.sendWalkingState()
       this.logger.info('walk stopped')
     }
-    this.nextWalkAt = performance.now() + nextWalkDelayMs()
+    this.nextWalkAt = performance.now() + this.nextWalkDelay()
   }
 
   reconcileDisplay(): void {
     const win = this.getWindow()
     if (!win || this.dragging || this.closing || this.peeking) return
-    const area = screen.getDisplayMatching(win.getBounds()).workArea
+    const display = screen.getDisplayMatching(win.getBounds())
+    const area = display.workArea
     const nextSize = sizeForArea(this.requestedPetSize, area)
     this.x += (this.windowSize - nextSize) / 2
+    if (this.manuallyPlaced) this.y += (this.windowSize - nextSize) / 2
     this.windowSize = nextSize
-    this.x = clampWindowX(this.x, area, this.windowSize)
-    const x = Math.round(this.x)
-    const y = bottomWindowY(area, this.windowSize)
+    if (this.manuallyPlaced) {
+      // Keep partial offscreen placement. Recover only when a display change
+      // makes the entire pet unreachable; deliberate drag exits are handled below.
+      if (!isPetOnAnyDisplay({ x: this.x, y: this.y }, this.visibleDragFootprint(),
+        screen.getAllDisplays().map((item) => item.bounds))) {
+        const position = clampDragPosition(this.x, this.y, display.bounds, nextSize, this.dragFootprint(nextSize))
+        this.x = position.x
+        this.y = position.y
+      }
+    } else {
+      this.x = clampWindowX(this.x, area, nextSize)
+      this.y = bottomWindowY(area, nextSize)
+    }
+    const x = roundWindowCoordinate(this.x)
+    const y = roundWindowCoordinate(this.y)
     const bounds = win.getBounds()
     if (bounds.x !== x || bounds.y !== y || bounds.width !== this.windowSize || bounds.height !== this.windowSize) {
       this.applyBounds({ x, y, width: this.windowSize, height: this.windowSize })
@@ -329,35 +384,43 @@ export class PetWindowController {
     this.reconcileDisplay()
   }
 
-  startDrag(): void {
+  startDrag(footprint?: DragFootprint, anchor?: { x: number; y: number }): void {
     const win = this.getWindow()
     if (!win || !win.isVisible() || this.dragging || this.closing || this.peeking) return
     this.stopWalk()
     const cursor = screen.getCursorScreenPoint()
     const bounds = win.getBounds()
-    this.dragOffset = { x: cursor.x - bounds.x, y: cursor.y - bounds.y }
+    if (footprint) {
+      this.footprintRatio = {
+        x: footprint.x / bounds.width,
+        y: footprint.y / bounds.height,
+        width: footprint.width / bounds.width,
+        height: footprint.height / bounds.height
+      }
+    }
+    // Use the original pointer-down position, not the cursor after the drag gate.
+    this.dragOffset = anchor ?? { x: cursor.x - bounds.x, y: cursor.y - bounds.y }
+    this.dragEdgePush = new DragEdgePush()
     this.dragging = true
     this.dragTick()
-    this.dragTimer = setInterval(() => this.dragTick(), 1000 / 60)
+    if (!this.quitting) this.dragTimer = setInterval(() => this.dragTick(), 1000 / 60)
     this.logger.info('pet drag started')
   }
 
   endDrag(): void {
     if (!this.dragging) return
+    this.dragTick(false)
     this.dragging = false
     this.stopDragTimer()
     const win = this.getWindow()
-    if (!win || this.closing) return
-    const cursor = screen.getCursorScreenPoint()
-    const area = screen.getDisplayNearestPoint(cursor).workArea
-    const nextSize = sizeForArea(this.requestedPetSize, area)
-    const x = Math.round(clampWindowX(cursor.x - this.dragOffset.x, area, nextSize))
-    const y = bottomWindowY(area, nextSize)
-    this.windowSize = nextSize
-    this.x = x
-    this.applyBounds({ x, y, width: nextSize, height: nextSize })
-    this.nextWalkAt = performance.now() + nextWalkDelayMs()
-    this.logger.info(`pet drag landed -> ${x},${y} ${nextSize}x${nextSize}`)
+    if (!win || this.closing || this.quitting) return
+    const bounds = win.getBounds()
+    this.x = bounds.x
+    this.y = bounds.y
+    this.manuallyPlaced = true
+    // Release keeps the exact location, even with only part of the pet visible.
+    this.nextWalkAt = performance.now() + this.nextWalkDelay()
+    this.logger.info(`pet drag landed -> ${this.x},${this.y} ${bounds.width}x${bounds.height}`)
   }
 
   beginClose(): CloseScene {
@@ -404,6 +467,7 @@ export class PetWindowController {
       if (compactBounds) {
         this.applyBounds(compactBounds)
         this.x = compactBounds.x
+        this.y = compactBounds.y
         this.windowSize = compactBounds.width
       }
     }
@@ -423,8 +487,14 @@ export class PetWindowController {
   private applyBounds(bounds: Electron.Rectangle): void {
     // Suppress the resize event generated by our own setBounds. Windows may
     // round the requested DIP size, which previously caused an infinite guard.
+    // Normalize -0 as well: Electron's native bindings reject it.
     this.resizeSuppressUntil = Date.now() + 250
-    this.getWindow()?.setBounds(bounds, false)
+    this.getWindow()?.setBounds({
+      x: roundWindowCoordinate(bounds.x),
+      y: roundWindowCoordinate(bounds.y),
+      width: Math.max(1, Math.round(bounds.width)),
+      height: Math.max(1, Math.round(bounds.height))
+    }, false)
   }
 
   private tick(): void {
@@ -434,7 +504,7 @@ export class PetWindowController {
     const win = this.getWindow()
     if (!win || !win.isVisible()) return
     if (this.dragging || this.closing || this.peeking) return
-    if (this.walkPaused) {
+    if (this.walkPaused || !this.walkEnabled) {
       if (this.walking) this.stopWalk()
       return
     }
@@ -451,19 +521,31 @@ export class PetWindowController {
     if (!this.walking) return
 
     const area = screen.getDisplayMatching(win.getBounds()).workArea
+    const footprint = this.dragFootprint(this.windowSize)
+    const walkArea = this.manuallyPlaced
+      ? typeof footprint === 'number'
+        ? { ...area, x: area.x - (this.windowSize - footprint) / 2, width: area.width + this.windowSize - footprint }
+        : { ...area, x: area.x - footprint.x, width: area.width + this.windowSize - footprint.width }
+      : area
     const next = stepWalk(
       { x: this.x, direction: this.direction },
       dtSeconds,
-      walkSpeed(this.windowSize),
-      area,
+      walkSpeed(this.windowSize, this.walkSpeedMultiplier),
+      walkArea,
       this.windowSize
     )
     this.x = next.x
     this.setDirection(next.direction)
-    const x = Math.round(this.x)
-    const y = bottomWindowY(area, this.windowSize)
+    const x = roundWindowCoordinate(this.x)
+    const y = this.manuallyPlaced ? roundWindowCoordinate(this.y) : bottomWindowY(area, this.windowSize)
     const bounds = win.getBounds()
-    if (bounds.x !== x || bounds.y !== y) win.setPosition(x, y, false)
+    if (bounds.x !== x || bounds.y !== y) {
+      try {
+        win.setPosition(x, y, false)
+      } catch (error: unknown) {
+        this.logger.error(`walk setPosition failed (${x},${y}): ${String(error)}`)
+      }
+    }
   }
 
   private setDirection(direction: WalkDirection): void {
@@ -503,28 +585,78 @@ export class PetWindowController {
     this.timer = null
   }
 
-  private dragTick(): void {
+  private dragTick(advance = true): void {
     const win = this.getWindow()
     if (!this.dragging || !win || !win.isVisible()) {
       this.stopDragTimer()
       return
     }
     const cursor = screen.getCursorScreenPoint()
-    const displays = screen.getAllDisplays()
-    const minX = Math.min(...displays.map((display) => display.bounds.x))
-    const minY = Math.min(...displays.map((display) => display.bounds.y))
-    const maxX = Math.max(...displays.map((display) => display.bounds.x + display.bounds.width))
-    const maxY = Math.max(...displays.map((display) => display.bounds.y + display.bounds.height))
-    const x = Math.round(Math.min(Math.max(minX, maxX - this.windowSize), Math.max(minX, cursor.x - this.dragOffset.x)))
-    const y = Math.round(Math.min(Math.max(minY, maxY - this.windowSize), Math.max(minY, cursor.y - this.dragOffset.y)))
+    const displays = screen.getAllDisplays().map((item) => item.bounds)
+    // On release/cancel retain the last applied position, with no extra edge push.
+    const target = advance
+      ? dragPosition(cursor, this.dragOffset, this.dragEdgePush.step(cursor, displays, performance.now()))
+      : win.getBounds()
+    const x = roundWindowCoordinate(target.x)
+    const y = roundWindowCoordinate(target.y)
+    // Windows/Electron can hand back a non-finite cursor or bounds while a
+    // window crosses a mixed-DPI display boundary. setPosition() throws a
+    // native conversion error for that, which used to surface as an uncaught
+    // main-process exception. Keep the last good position instead.
+    if (!isUsableDragCoordinate(x, y)) {
+      if (performance.now() - this.lastDragWarnAt >= 1000) {
+        this.lastDragWarnAt = performance.now()
+        this.logger.warn(`drag tick skipped invalid target x=${String(target.x)} y=${String(target.y)} ` +
+          `cursor=${String(cursor.x)},${String(cursor.y)} anchor=${this.dragOffset.x},${this.dragOffset.y}`)
+      }
+      return
+    }
     const bounds = win.getBounds()
-    if (bounds.x !== x || bounds.y !== y) win.setPosition(x, y, false)
+    if (bounds.x !== x || bounds.y !== y) {
+      try {
+        win.setPosition(x, y, false)
+      } catch (error: unknown) {
+        this.logger.error(`drag setPosition failed (${x},${y}): ${String(error)}`)
+        this.dragging = false
+        this.stopDragTimer()
+        return
+      }
+    }
     this.x = x
+    this.y = y
+    if (displays.length > 0 && !isPetOnAnyDisplay({ x, y }, this.visibleDragFootprint(), displays)) {
+      this.logger.info(`pet dragged completely off all displays -> quit at ${x},${y}`)
+      this.dragging = false
+      this.prepareToQuit()
+      app.quit()
+    }
+  }
+
+  private visibleDragFootprint(): DragFootprint {
+    const footprint = this.dragFootprint(this.windowSize)
+    // Extra room covers the dangling limbs and elastic motion during the drag.
+    const margin = this.windowSize * 0.06
+    const box = typeof footprint === 'number'
+      ? { x: (this.windowSize - footprint) / 2, y: (this.windowSize - footprint) / 2,
+          width: footprint, height: footprint }
+      : footprint
+    return { x: box.x - margin, y: box.y - margin,
+      width: box.width + margin * 2, height: box.height + margin * 2 }
   }
 
   private stopDragTimer(): void {
     if (this.dragTimer !== null) clearInterval(this.dragTimer)
     this.dragTimer = null
+  }
+
+  private dragFootprint(size: number): number | DragFootprint {
+    const ratio = this.footprintRatio
+    return ratio ? {
+      x: ratio.x * size,
+      y: ratio.y * size,
+      width: ratio.width * size,
+      height: ratio.height * size
+    } : this.requestedPetSize
   }
 
   private clearCloseTimer(): void {

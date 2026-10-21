@@ -8,6 +8,7 @@ import {
 } from '../shared/contracts'
 import type { PetSettings } from '../shared/settings'
 import type { WalkDirection } from '../shared/walk'
+import type { DragFootprint } from '../shared/walk'
 
 export interface CursorPoint {
   x: number
@@ -32,8 +33,9 @@ export interface CloseScene {
 }
 
 export interface PetApi {
+  openSettings(): void
   setInteractive(interactive: boolean): void
-  startDrag(): void
+  startDrag(footprint?: DragFootprint, anchor?: CursorPoint): void
   endDrag(): void
   beginClose(): Promise<CloseScene>
   finishClose(): Promise<void>
@@ -43,6 +45,7 @@ export interface PetApi {
   loadAsset(name: AssetName): Promise<Uint8Array>
   getSettings(): Promise<PetSettings>
   saveSettings(patch: Partial<PetSettings>): Promise<PetSettings>
+  choosePhotoDirectory(): Promise<string | null>
   onSettings(callback: (settings: PetSettings) => void): () => void
   onSettingsChanged(callback: (settings: PetSettings) => void): () => void
   onWalking(callback: (walking: boolean) => void): () => void
@@ -66,11 +69,14 @@ function onSettings(callback: (settings: PetSettings) => void): () => void {
 }
 
 const petApi: PetApi = {
+  openSettings() {
+    ipcRenderer.send('pet:settings:open')
+  },
   setInteractive(interactive) {
     ipcRenderer.send('pet:interactive', interactive)
   },
-  startDrag() {
-    ipcRenderer.send('pet:drag:start')
+  startDrag(footprint, anchor) {
+    ipcRenderer.send('pet:drag:start', footprint, anchor)
   },
   endDrag() {
     ipcRenderer.send('pet:drag:end')
@@ -100,6 +106,9 @@ const petApi: PetApi = {
   },
   saveSettings(patch) {
     return ipcRenderer.invoke('pet:settings:save', patch) as Promise<PetSettings>
+  },
+  choosePhotoDirectory() {
+    return ipcRenderer.invoke('pet:photo:choose-directory') as Promise<string | null>
   },
   onSettings,
   onSettingsChanged: onSettings,

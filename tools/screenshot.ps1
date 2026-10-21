@@ -1,5 +1,7 @@
 param(
   [string]$Out = "screen.png",
+  [string]$ReadyFile = "",
+  [int]$DelayMs = 0,
   [int]$X = 0,
   [int]$Y = 0,
   [int]$Width = 0,
@@ -18,6 +20,9 @@ if ([System.IO.Path]::IsPathRooted($Out)) {
 }
 $outDir = Split-Path -Parent $outPath
 New-Item -ItemType Directory -Force $outDir | Out-Null
+
+if ($ReadyFile) { [System.IO.File]::WriteAllText($ReadyFile, "ready") }
+if ($DelayMs -gt 0) { Start-Sleep -Milliseconds $DelayMs }
 
 $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
 if ($Width -le 0) { $Width = $screen.Width }

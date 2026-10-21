@@ -69,7 +69,7 @@ describe('settings v2 migration', () => {
       fullscreenPeek: true,
       peekFrequency: 'standard',
       sleepEnabled: true,
-      sleepAfterIdleSec: 1200,
+      sleepAfterIdleSec: 360,
       wakeLieInSec: 3,
       closeSignEnabled: true,
       startHidden: false

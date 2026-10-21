@@ -1,5 +1,6 @@
 import type { SkinViewer } from 'skinview3d'
-import { Raycaster, Vector2 } from 'three'
+import { Mesh, Raycaster, Vector2, Vector3 } from 'three'
+import type { DragFootprint } from '../shared/walk'
 import type { SkinPixels } from './viewer'
 
 export class CharacterHitTest {
@@ -10,6 +11,43 @@ export class CharacterHitTest {
   constructor(private readonly canvas: HTMLCanvasElement, private readonly viewer: SkinViewer) {}
 
   setSkin(skin: SkinPixels): void { this.skin = skin }
+
+  /** Project the model into canvas pixels so empty transparent margins can cross screen edges. */
+  dragFootprint(): DragFootprint | null {
+    if (!this.skin) return null
+    const skin = this.viewer.playerObject.skin
+    skin.updateWorldMatrix(true, true)
+    this.viewer.camera.updateMatrixWorld()
+    const rect = this.canvas.getBoundingClientRect()
+    let left = Number.POSITIVE_INFINITY
+    let top = Number.POSITIVE_INFINITY
+    let right = Number.NEGATIVE_INFINITY
+    let bottom = Number.NEGATIVE_INFINITY
+    skin.traverse((object) => {
+      if (!(object instanceof Mesh) || !object.visible) return
+      if (!object.geometry.boundingBox) object.geometry.computeBoundingBox()
+      const box = object.geometry.boundingBox
+      if (!box) return
+      for (const x of [box.min.x, box.max.x]) {
+        for (const y of [box.min.y, box.max.y]) {
+          for (const z of [box.min.z, box.max.z]) {
+            const point = new Vector3(x, y, z).applyMatrix4(object.matrixWorld).project(this.viewer.camera)
+            left = Math.min(left, (point.x * 0.5 + 0.5) * rect.width)
+            right = Math.max(right, (point.x * 0.5 + 0.5) * rect.width)
+            top = Math.min(top, (-point.y * 0.5 + 0.5) * rect.height)
+            bottom = Math.max(bottom, (-point.y * 0.5 + 0.5) * rect.height)
+          }
+        }
+      }
+    })
+    if (![left, top, right, bottom].every(Number.isFinite)) return null
+    const margin = Math.max(8, rect.width * 0.012)
+    left = Math.max(0, left - margin)
+    top = Math.max(0, top - margin)
+    right = Math.min(rect.width, right + margin)
+    bottom = Math.min(rect.height, bottom + margin)
+    return { x: left, y: top, width: right - left, height: bottom - top }
+  }
 
   hit(clientX: number, clientY: number): boolean {
     if (!this.skin) return false

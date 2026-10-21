@@ -17,7 +17,7 @@ describe('settings validation', () => {
       activityLevel: 'low',
       performanceMode: 'normal',
       peekFrequency: 'standard',
-      sleepAfterIdleSec: 1200,
+      sleepAfterIdleSec: 360,
       wakeLieInSec: 3
     })
   })
@@ -43,6 +43,33 @@ describe('settings validation', () => {
     })
     expect(parseSettings({ size: 12, volume: 3, longPressMs: 500, darkThreshold: 90 })).toMatchObject({
       size: 80, volume: 1, longPressMs: 1000, darkThreshold: 60
+    })
+  })
+
+  it('keeps desktop and photo choices while bounding the new sliders', () => {
+    expect(parseSettings({
+      version: 2,
+      opacity: 0.1,
+      walkEnabled: false,
+      walkFrequency: 'high',
+      walkSpeedMultiplier: 4,
+      shadowEnabled: false,
+      idleMicroMotion: false,
+      photoPrefix: '旅途',
+      photoScope: 'all',
+      photoNotify: true,
+      sleepAfterIdleSec: 3600
+    })).toMatchObject({
+      opacity: 0.3,
+      walkEnabled: false,
+      walkFrequency: 'high',
+      walkSpeedMultiplier: 2,
+      shadowEnabled: false,
+      idleMicroMotion: false,
+      photoPrefix: '旅途',
+      photoScope: 'all',
+      photoNotify: true,
+      sleepAfterIdleSec: 3600
     })
   })
 

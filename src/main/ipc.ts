@@ -1,10 +1,11 @@
-import { app, ipcMain, screen, type WebContents } from 'electron'
+import { app, dialog, ipcMain, screen, type WebContents } from 'electron'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { IPC_CHANNELS } from '../shared/contracts'
-import type { PetSettings } from '../shared/settings'
-import type { WalkDirection } from '../shared/walk'
+import { ACTION_LABELS, DEFAULT_HOTKEYS, IPC_CHANNELS, type ActionId } from '../shared/contracts'
+import { parseSettings, type PetSettings } from '../shared/settings'
+import type { DragFootprint, WalkDirection } from '../shared/walk'
 import type { Logger } from './logger'
+import type { HotkeyApplyResult, HotkeyBindings } from './hotkeys'
 import type { CloseScene, PetWindowController } from './pet-window'
 import type { SettingsStore } from './settings'
 import type { SettingsWindowController } from './settings-window'
@@ -54,9 +55,11 @@ export interface IpcDependencies {
   settingsWindow: SettingsWindowController
   settings: SettingsStore
   logger: Logger
+  applyHotkeys: (bindings: HotkeyBindings) => HotkeyApplyResult
+  applyAutostart: (enabled: boolean) => void
 }
 
-export function registerIpc({ pet, settingsWindow, settings, logger }: IpcDependencies): void {
+export function registerIpc({ pet, settingsWindow, settings, logger, applyHotkeys, applyAutostart }: IpcDependencies): void {
   const isPet = (sender: WebContents): boolean => sender === pet.getWindow()?.webContents
   const isSettings = (sender: WebContents): boolean => sender === settingsWindow.getWindow()?.webContents
   const isKnown = (sender: WebContents): boolean => isPet(sender) || isSettings(sender)
@@ -65,8 +68,28 @@ export function registerIpc({ pet, settingsWindow, settings, logger }: IpcDepend
     if (isPet(event.sender) && typeof value === 'boolean') pet.setInteractive(value)
   })
 
-  ipcMain.on('pet:drag:start', (event) => {
-    if (isPet(event.sender)) pet.startDrag()
+  ipcMain.on('pet:drag:start', (event, value: unknown, origin: unknown) => {
+    if (!isPet(event.sender)) return
+    const size = pet.getBounds()?.width ?? 0
+    let footprint: DragFootprint | undefined
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const candidate = value as Partial<DragFootprint>
+      const { x, y, width, height } = candidate
+      if (typeof x === 'number' && typeof y === 'number' &&
+          typeof width === 'number' && typeof height === 'number' &&
+          [x, y, width, height].every(Number.isFinite) &&
+          x >= 0 && y >= 0 && width > 0 && height > 0 &&
+          x + width <= size + 2 && y + height <= size + 2) {
+        footprint = { x, y, width, height }
+      }
+    }
+    let anchor: { x: number; y: number } | undefined
+    if (origin && typeof origin === 'object') {
+      const { x, y } = origin as { x?: unknown; y?: unknown }
+      if (typeof x === 'number' && typeof y === 'number' && Number.isFinite(x) && Number.isFinite(y) &&
+          x >= 0 && y >= 0 && x <= size + 2 && y <= size + 2) anchor = { x, y }
+    }
+    pet.startDrag(footprint, anchor)
   })
 
   ipcMain.on('pet:drag:end', (event) => {
@@ -117,13 +140,63 @@ export function registerIpc({ pet, settingsWindow, settings, logger }: IpcDepend
     return settings.get()
   })
 
+  ipcMain.on('pet:settings:open', (event) => {
+    if (isPet(event.sender)) settingsWindow.open()
+  })
+
+  ipcMain.handle('pet:photo:choose-directory', async (event): Promise<string | null> => {
+    if (!isSettings(event.sender)) throw new Error('Directory request rejected')
+    const win = settingsWindow.getWindow()
+    if (!win) return null
+    const result = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'] })
+    return result.canceled ? null : result.filePaths[0] ?? null
+  })
+
   ipcMain.handle('pet:settings:save', async (event, patch: unknown): Promise<PetSettings> => {
     if (!isKnown(event.sender)) throw new Error('Settings update rejected')
     if (typeof patch !== 'object' || patch === null || Array.isArray(patch)) {
       throw new Error('Invalid settings patch')
     }
-    const updated = await settings.update(patch as Partial<PetSettings>)
+    const previous = settings.get()
+    const candidate = parseSettings({ ...previous, ...patch })
+    const hotkeysChanged = (Object.keys(DEFAULT_HOTKEYS) as ActionId[])
+      .some((action) => candidate.hotkeys[action] !== previous.hotkeys[action])
+    if (hotkeysChanged) {
+      const result = applyHotkeys(candidate.hotkeys)
+      if (!result.ok) {
+        const errors = result.errors.map(({ action, reason }) => {
+          const description = reason === 'occupied' ? '已被其他程序占用'
+            : reason === 'duplicate' ? '与其他功能重复'
+              : reason === 'invalid' ? '格式无效' : '注册失败'
+          return `${ACTION_LABELS[action]}：${description}`
+        })
+        throw new Error(`快捷键未保存：${errors.join('；')}`)
+      }
+    }
+    const autostartChanged = candidate.autostart !== previous.autostart
+    if (autostartChanged) {
+      try { applyAutostart(candidate.autostart) } catch (error) {
+        if (hotkeysChanged) applyHotkeys(previous.hotkeys)
+        throw error
+      }
+    }
+    let updated: PetSettings
+    try {
+      updated = await settings.update(patch as Partial<PetSettings>)
+    } catch (error) {
+      if (hotkeysChanged) {
+        const rollback = applyHotkeys(previous.hotkeys)
+        if (!rollback.ok) logger.error('hotkey rollback failed after settings write failure')
+      }
+      if (autostartChanged) {
+        try { applyAutostart(previous.autostart) } catch (rollbackError) {
+          logger.error(`autostart rollback failed: ${String(rollbackError)}`)
+        }
+      }
+      throw error
+    }
     pet.setPetSize(updated.size)
+    pet.setOpacity(updated.opacity)
     pet.getWindow()?.webContents.send('pet:settings:changed', updated)
     settingsWindow.getWindow()?.webContents.send('pet:settings:changed', updated)
     return updated

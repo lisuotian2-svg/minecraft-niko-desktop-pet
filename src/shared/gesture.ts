@@ -29,7 +29,7 @@ export const MAX_LONG_PRESS_MS = 2000
 
 export const DEFAULT_GESTURE_TIMING: Readonly<GestureTiming> = Object.freeze({
   longPressMs: 1500,
-  dragDelayMs: 250,
+  dragDelayMs: 50,
   gatherOffsetMs: 900,
   closeOffsetMs: 1500,
   slopPx: 5
@@ -67,7 +67,7 @@ function normalizeTiming(input: Partial<GestureTiming>): GestureTiming {
 /**
  * Pure left-button gesture clock. DOM events and effects stay in the renderer.
  *
- * INT-P0-01: movement inside the 250 ms gate is remembered as the current
+ * Movement inside the short drag gate is remembered as the current
  * position, not as a permanent "already moved" flag. At the gate deadline the
  * machine decides from the current position: still inside the slop means the
  * long press continues, outside means a drag starts. This keeps a small early
@@ -129,19 +129,13 @@ export class GestureMachine {
   }
 
   move(now: number, x: number, y: number): GestureAction[] {
-    const actions = this.tick(now)
-    if (this.phaseValue !== 'pressed') return actions
-    this.lastX = x
-    this.lastY = y
-    const elapsed = now - this.pressedAt
-    if (elapsed < this.timingValue.dragDelayMs) return actions
-    // tick() has already handled the torch deadline; only the drag gate remains.
-    if (elapsed >= this.torchDelayMs) return actions
-    if (this.distanceFromStart() > this.timingValue.slopPx) {
-      this.phaseValue = 'dragging'
-      actions.push('dragStart')
+    // Decide using this event's coordinates; the previous sample could still
+    // be outside the slop when the cursor has already moved back inside it.
+    if (this.phaseValue === 'pressed') {
+      this.lastX = x
+      this.lastY = y
     }
-    return actions
+    return this.tick(now)
   }
 
   tick(now: number): GestureAction[] {

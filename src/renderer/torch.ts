@@ -114,6 +114,10 @@ export class PetTorch {
     return { visible: this.root.visible, lightIntensity: this.light.intensity }
   }
 
+  getFlameWorldPosition(target: import('three').Vector3): import('three').Vector3 {
+    return this.flame.getWorldPosition(target)
+  }
+
   dispose(): void {
     if (this.disposed) return
     this.setOn(false)

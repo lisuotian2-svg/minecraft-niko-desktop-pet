@@ -14,7 +14,7 @@ import type {
   PerformanceMode
 } from '../shared/contracts'
 import { DEFAULT_SETTINGS, type PetSettings } from '../shared/settings'
-import type { WalkDirection } from '../shared/walk'
+import type { DragFootprint, WalkDirection } from '../shared/walk'
 import { PetAnimator } from './animator'
 import { PetAudio } from './audio'
 import { PetGestures } from './gestures'
@@ -31,6 +31,7 @@ import { CloseSignOverlay } from './sign'
 import { ContactShadow, SnackParticles } from './snacks'
 import { PetTorch } from './torch'
 import { BlinkTexture, createViewer, loadSkin } from './viewer'
+import { playStartupSequence } from './startup'
 import './pet.css'
 
 /**
@@ -75,6 +76,7 @@ interface NikoDebugApi {
   getPeekState(): FullscreenState
   revealPeek(): void
   getParticles(): number
+  getDragFootprint(): DragFootprint | null
   getShadow(): { enabled: boolean; visible: boolean }
 }
 
@@ -127,6 +129,8 @@ let gestureController: PetGestures | null = null
 const footPoint = new Vector3()
 const headPoint = new Vector3()
 const mouthPoint = new Vector3()
+const torchPoint = new Vector3()
+let lastTorchSparkAt = 0
 
 const torchController = new TorchController({
   settings: {
@@ -146,7 +150,7 @@ const torchController = new TorchController({
   }
 })
 document.addEventListener('visibilitychange', () => {
-  torchController.setHidden(document.hidden)
+  torchController.setHidden(document.hidden || animator.behaviorMode === 'sleep')
 })
 torchController.setHidden(document.hidden)
 
@@ -213,12 +217,12 @@ function eat(): boolean {
       if (!eating) return
       bread.setBite(index + 1)
       audio.chew()
-      snacks.crumbs(mouthOrigin())
+      if (currentSettings?.particles) snacks.crumbs(mouthOrigin())
       if (index === biteTimes.length - 1) {
         window.setTimeout(() => {
           if (!eating) return
           audio.burp()
-          snacks.hearts(headOrigin())
+          if (currentSettings?.particles) snacks.hearts(headOrigin())
         }, 280)
       }
     }, delay)
@@ -293,8 +297,9 @@ const actionPort: ActionHostPort = {
       return !walking && (mode === 'idle' || mode === 'walk') && !torchController.isOn()
     }
     if (action === 'torch') return !animator.isExclusiveAction
-    // dance/wave/sleep/wake need the P0-b posture timeline; the bus gets an
-    // explicit behavior-lock rather than a fake success.
+    if (action === 'sleep') return !walking && !animator.isExclusiveAction
+    if (action === 'wake') return mode === 'sleep'
+    // Dance and wave still have no animation timeline.
     return false
   },
   perform: (action) => {
@@ -304,6 +309,8 @@ const actionPort: ActionHostPort = {
       case 'torch':
         torchController.toggleManual()
         return true
+      case 'sleep': return sleepPet()
+      case 'wake': return wakePet()
       default:
         return false
     }
@@ -318,10 +325,7 @@ const actionPort: ActionHostPort = {
 const actions = new InteractionActions(actionPort)
 
 /**
- * Renderer half of a production walk pause. The optional preload method is the
- * Lead/platform integration point; until it exists the animator freezes its
- * pose but main still moves the window, so actions that need a true pause are
- * rejected by canRun() instead of being allowed to slide.
+ * Pause both the pose and main's walking timer during sleep and explicit actions.
  */
 function setProductionWalkPaused(paused: boolean): void {
   animator.setWalkPosePaused(paused)
@@ -338,15 +342,44 @@ const gestures = new PetGestures(canvas, viewer, hitTest, animator, audio, api, 
   startGathering: () => particles.startGathering(petOrigin()),
   stopGathering: () => particles.stopGathering(),
   close: closePet,
-  onGestureStart: () => { actions.cancel('gesture') }
+  onGestureStart: () => {
+    lastInteractionAt = performance.now()
+    const woke = wakePet()
+    actions.cancel('gesture')
+    return woke
+  }
 })
 gestureController = gestures
 let skinReady = false
 let currentSettings: PetSettings | null = null
+let lastInteractionAt = performance.now()
+
+function sleepPet(): boolean {
+  if (!animator.sleep()) return false
+  torchController.setHidden(true)
+  setProductionWalkPaused(true)
+  return true
+}
+
+function wakePet(): boolean {
+  lastInteractionAt = performance.now()
+  if (!animator.wake()) return false
+  torchController.restore()
+  torchController.setHidden(document.hidden)
+  setProductionWalkPaused(false)
+  return true
+}
+
+window.setInterval(() => {
+  if (!skinReady || !currentSettings?.sleepEnabled || document.hidden || peekActive || walking ||
+    gestures.isPressed || gestures.isDragging || gestures.isClosing || animator.behaviorMode !== 'idle') return
+  if (performance.now() - lastInteractionAt >= currentSettings.sleepAfterIdleSec * 1000) sleepPet()
+}, 1000)
 
 // task-11 preload contract: onAction is required on PetApi and forwards
 // validated pet:action IPC requests to the renderer action bus.
 api.onAction((request) => {
+  if (request.id !== 'sleep') lastInteractionAt = performance.now()
   const result = actions.performAction(request)
   api.log(`action ${request.id} ${result.ok ? 'ok' : `rejected: ${result.reason ?? 'unknown'}`}`)
 })
@@ -371,6 +404,8 @@ api.onRestored(() => {
   animator.setFullscreenPeek(peekState)
   animator.setClosing(false)
   animator.resetBehavior()
+  setProductionWalkPaused(false)
+  lastInteractionAt = performance.now()
   gestures.resetAfterRestore()
   api.log('pet restored from tray')
 })
@@ -385,15 +420,24 @@ function resizeViewer(): void {
 }
 resizeViewer()
 
-function performancePreset(settings: PetSettings): { mode: PerformanceMode; shadow: boolean } {
+function performancePreset(settings: PetSettings): { mode: PerformanceMode; shadow: boolean; maxFps: 30 | 60; particleScale: number } {
   const candidate = (settings as PetSettings & { performanceMode?: unknown }).performanceMode
   const mode: PerformanceMode = isPerformanceMode(candidate) ? candidate : 'normal'
-  return { mode, shadow: PERFORMANCE_PRESETS[mode].mode !== 'simple' }
+  const preset = PERFORMANCE_PRESETS[mode]
+  return { mode, shadow: mode !== 'simple', maxFps: preset.maxFps, particleScale: preset.particleScale }
 }
 
 function applySettings(settings: PetSettings): void {
   currentSettings = settings
   audio.setSettings(settings)
+  const preset = performancePreset(settings)
+  animator.setMaxFps(preset.maxFps)
+  animator.setWalkSpeedMultiplier(settings.walkSpeedMultiplier)
+  animator.setIdleMicroMotion(settings.idleMicroMotion && PERFORMANCE_PRESETS[preset.mode].idleMicroMotion)
+  snacks.setDensity(preset.particleScale)
+  if (!settings.particles) snacks.clear()
+  if (!settings.sleepEnabled) wakePet()
+  lastInteractionAt = performance.now()
   torchController.setSettings({
     autoTorch: settings.autoTorch,
     darkThreshold: settings.darkThreshold
@@ -402,8 +446,8 @@ function applySettings(settings: PetSettings): void {
   viewer.zoom = 0.55
   viewer.controls.update()
   resizeViewer()
-  // performanceMode is owned by platform; until it lands, normal is the default.
-  shadow.setEnabled(performancePreset(settings).shadow)
+  shadow.setEnabled(preset.shadow && settings.shadowEnabled)
+  if (skinReady) resetRandomActionTimers()
 }
 
 api.onSettings(applySettings)
@@ -419,6 +463,7 @@ api.onPeekState((state) => {
   peekState = state
   peekActive = state.active && state.phase !== 'idle'
   if (peekActive) {
+    if (animator.behaviorMode === 'sleep') wakePet()
     cancelEat()
     shadow.clear()
     torchController.setHidden(true)
@@ -445,7 +490,6 @@ animator.onFootstep(() => audio.step())
 animator.onEvent((event) => {
   if (event.type === 'pet') {
     audio.purr()
-    snacks.hearts(headOrigin())
   } else if (event.type === 'peekReveal') {
     // Clicking the head-only peek returns the normal window to the bottom for
     // 10 s. Main owns that transition; the renderer only requests it.
@@ -456,6 +500,11 @@ animator.onEvent((event) => {
 })
 
 animator.onFrame((info) => {
+  if (info.visible && torchController.isOn() && currentSettings?.particles &&
+    info.now - lastTorchSparkAt >= 120) {
+    lastTorchSparkAt = info.now
+    snacks.spark(toWindow(torch.getFlameWorldPosition(torchPoint)))
+  }
   if (!info.visible || info.mode === 'close' || info.mode === 'peek') {
     shadow.setState({ x: 0, y: 0, width: 0, height: 0, opacity: 0, visible: false })
     return
@@ -475,30 +524,51 @@ animator.onFrame((info) => {
   })
 })
 
+let snackTimer = 0
+let stretchTimer = 0
+
+function randomDelay(kind: 'snack' | 'stretch'): number {
+  const level = currentSettings?.activityLevel ?? 'low'
+  const minutes = kind === 'snack'
+    ? level === 'high' ? [2, 6] : level === 'normal' ? [5, 12] : [8, 20]
+    : level === 'high' ? [2, 5] : level === 'normal' ? [5, 10] : [8, 15]
+  return (minutes[0]! + Math.random() * (minutes[1]! - minutes[0]!)) * 60_000
+}
+
 function scheduleSnack(): void {
-  const delay = 8 * 60_000 + Math.random() * 12 * 60_000
-  window.setTimeout(() => {
-    if (!document.hidden && !peekActive && !walking && !eating && !torchController.isOn() &&
+  snackTimer = window.setTimeout(() => {
+    if (currentSettings?.randomActions && !document.hidden && !peekActive && !walking && !eating && !torchController.isOn() &&
       !gestures.isPressed && !gestures.isClosing && animator.canStartScheduled('eat')) eat()
     scheduleSnack()
-  }, delay)
+  }, randomDelay('snack'))
 }
 
 function scheduleStretch(): void {
-  const delay = 8 * 60_000 + Math.random() * 7 * 60_000
-  window.setTimeout(() => {
-    if (!document.hidden && !peekActive && !walking && !eating && !torchController.isOn() &&
+  stretchTimer = window.setTimeout(() => {
+    if (currentSettings?.randomActions && !document.hidden && !peekActive && !walking && !eating && !torchController.isOn() &&
       !gestures.isPressed && !gestures.isClosing && animator.canStartScheduled('stretch')) stretch()
     scheduleStretch()
-  }, delay)
+  }, randomDelay('stretch'))
 }
 
-void loadSkin(viewer, api).then((pixels) => {
+function resetRandomActionTimers(): void {
+  if (snackTimer) window.clearTimeout(snackTimer)
+  if (stretchTimer) window.clearTimeout(stretchTimer)
+  snackTimer = 0
+  stretchTimer = 0
+  if (currentSettings?.randomActions) {
+    scheduleSnack()
+    scheduleStretch()
+  }
+}
+
+viewer.playerObject.visible = false
+void loadSkin(viewer, api).then(async (pixels) => {
+  await playStartupSequence(viewer, (message) => api.log(message))
   hitTest.setSkin(pixels)
   animator.setBlinkTexture(new BlinkTexture(viewer))
   skinReady = true
-  scheduleSnack()
-  scheduleStretch()
+  resetRandomActionTimers()
 }).catch((error: unknown) => api.log(`skin load error: ${String(error)}`))
 
 if (import.meta.env.DEV || new URLSearchParams(window.location.search).get('nikoDebug') === '1') {
@@ -538,8 +608,9 @@ if (import.meta.env.DEV || new URLSearchParams(window.location.search).get('niko
     getPeekState: () => peekState,
     revealPeek: () => api.revealPeek(),
     getParticles: () => particles.getParticleCount(),
+    getDragFootprint: () => hitTest.dragFootprint(),
     getShadow: () => ({
-      enabled: currentSettings ? performancePreset(currentSettings).shadow : true,
+      enabled: currentSettings ? performancePreset(currentSettings).shadow && currentSettings.shadowEnabled : true,
       visible: viewer.playerObject.visible
     })
   }

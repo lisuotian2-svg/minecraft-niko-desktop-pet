@@ -8,6 +8,7 @@ import {
 } from '../shared/contracts'
 import type { WalkDirection } from '../shared/walk'
 import { walkSpeed } from '../shared/walk'
+import { ElasticValue } from '../shared/elastic'
 import { BlinkTexture } from './viewer'
 
 const IDLE_YAW = -Math.PI / 8
@@ -91,6 +92,9 @@ export interface AnimationState {
   bodyTurning: boolean
   cursorLooking: boolean
   peeking: boolean
+  inertiaLean: number
+  elasticBob: number
+  elasticSquash: number
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -130,6 +134,8 @@ export class PetAnimator {
   private gaitPhase = 0
   private lastStepFrequency = 1.35
   private walkSpeedOverride: number | null = null
+  private walkSpeedMultiplier = 1
+  private idleMicroMotion = true
   private walkPosePaused = false
   private cursorX: number | null = null
   private cursorY: number | null = null
@@ -176,10 +182,47 @@ export class PetAnimator {
   private peekState: FullscreenState = { ...EMPTY_FULLSCREEN_STATE }
   private peekMode = false
   private savedZoom = 0.55
+  private readonly leanSpring = new ElasticValue(110, 12, 0.13)
+  private readonly bobSpring = new ElasticValue(135, 14, 1.25)
+  private readonly squashSpring = new ElasticValue(145, 14, 0.09)
+  private lastWindowX: number | null = null
+  private windowVelocityX = 0
+  private sleepBlend = 0
+  private maxFps: 30 | 60 = 30
+  private lastRenderAt = 0
 
   constructor(private readonly viewer: SkinViewer) {
     this.bodyYaw = normalizeAngle(this.viewer.playerWrapper.rotation.y)
+    // Animator owns pose updates; rendering is capped separately by the setting.
+    this.viewer.renderPaused = true
     this.frameId = requestAnimationFrame(this.frame)
+  }
+
+  setMaxFps(fps: 30 | 60): void { this.maxFps = fps }
+  setWalkSpeedMultiplier(multiplier: number): void { this.walkSpeedMultiplier = multiplier }
+  setIdleMicroMotion(enabled: boolean): void {
+    this.idleMicroMotion = enabled
+    if (!enabled) {
+      this.glance = 0
+      this.glancePitch = 0
+      this.idleBodyTarget = IDLE_YAW
+      this.idleBodyTurnUntil = 0
+    }
+  }
+
+  sleep(): boolean {
+    if (this.frozen || this.peekMode || this.walking || !this.canStartExclusive()) return false
+    this.mode = 'sleep'
+    this.cursorLookUntil = 0
+    return true
+  }
+
+  wake(): boolean {
+    if (this.mode !== 'sleep') return false
+    this.mode = this.baseMode()
+    this.bobSpring.kick(5)
+    this.squashSpring.kick(-0.5)
+    return true
   }
 
   /** Single action-lock state consumed by pet.ts and the interaction action bus. */
@@ -260,6 +303,7 @@ export class PetAnimator {
   get isPeeking(): boolean { return this.peekMode }
 
   private applyPeekMode(on: boolean): void {
+    this.resetElasticMotion()
     if (on) {
       if (this.mode === 'close') return
       this.cancelActiveAction()
@@ -308,6 +352,7 @@ export class PetAnimator {
     if (walking === this.walking) return
     if (walking && !this.walking) this.gaitPhase = 0
     this.walking = walking
+    if (!this.peekMode) this.bobSpring.kick(walking ? 5.8 : 2.8)
     if (walking && (this.mode === 'eat' || this.mode === 'stretch')) {
       // No walk-pause IPC yet: cancel the long action rather than gliding
       // across the desktop while the body is eating/stretching.
@@ -317,7 +362,12 @@ export class PetAnimator {
     }
   }
 
-  setFacing(facing: WalkDirection): void { this.facing = facing }
+  setFacing(facing: WalkDirection): void {
+    if (facing !== this.facing && this.walking && !this.peekMode) {
+      this.leanSpring.kick(facing === 1 ? -0.8 : 0.8)
+    }
+    this.facing = facing
+  }
 
   setDragging(dragging: boolean): void {
     if (dragging === this.dragging) return
@@ -327,6 +377,7 @@ export class PetAnimator {
       this.mode = 'drag'
       this.actionUntil = 0
       this.landingStartedAt = 0
+      this.bobSpring.kick(-3.4)
     } else {
       this.dragging = false
       if (this.mode === 'drag') this.mode = this.baseMode()
@@ -337,6 +388,8 @@ export class PetAnimator {
     this.dragging = false
     if (this.mode === 'drag') this.mode = this.baseMode()
     this.landingStartedAt = performance.now()
+    this.bobSpring.kick(7.5)
+    this.squashSpring.kick(-0.95)
   }
 
   setTorchOn(on: boolean): void { this.torchOn = on }
@@ -358,8 +411,10 @@ export class PetAnimator {
     this.walking = false
     this.walkBlend = 0
     this.gaitPhase = 0
+    this.resetElasticMotion()
     this.dragging = false
     this.dragBlend = 0
+    this.sleepBlend = 0
     this.landingStartedAt = 0
     this.mode = 'idle'
     this.actionUntil = 0
@@ -391,6 +446,9 @@ export class PetAnimator {
     this.lastPetAt = now
     this.petUntil = now + PET_DURATION_MS
     this.petEyesUntil = now + 850
+    this.bobSpring.kick(10)
+    this.squashSpring.kick(-1.2)
+    this.leanSpring.kick(this.facing === 1 ? -1.1 : 1.1)
     this.secondBlinkAt = now + 1200
     // Only this reaction window looks at the cursor; afterwards idle is
     // autonomous (random glances/breathing), per the latest user decision.
@@ -479,7 +537,10 @@ export class PetAnimator {
       cursorLooking: now < this.cursorLookUntil &&
         (this.mode === 'idle' || this.mode === 'pet' || this.mode === 'peek') &&
         !this.walking,
-      peeking: this.peekMode
+      peeking: this.peekMode,
+      inertiaLean: this.leanSpring.value,
+      elasticBob: this.bobSpring.value,
+      elasticSquash: this.squashSpring.value
     }
   }
 
@@ -487,6 +548,14 @@ export class PetAnimator {
     cancelAnimationFrame(this.frameId)
     this.eventListeners.clear()
     this.frameListeners.clear()
+  }
+
+  private resetElasticMotion(): void {
+    this.leanSpring.reset()
+    this.bobSpring.reset()
+    this.squashSpring.reset()
+    this.windowVelocityX = 0
+    this.lastWindowX = null
   }
 
   private baseMode(): BehaviorMode { return this.walking ? 'walk' : 'idle' }
@@ -544,6 +613,10 @@ export class PetAnimator {
     const dt = clamp((now - this.lastFrameAt) / 1000, 0, 0.05)
     this.lastFrameAt = now
     this.update(now, dt)
+    if (now - this.lastRenderAt >= 1000 / this.maxFps - 1) {
+      this.viewer.render()
+      this.lastRenderAt = now
+    }
     this.frameId = requestAnimationFrame(this.frame)
   }
 
@@ -560,7 +633,7 @@ export class PetAnimator {
 
   private currentStepFrequency(): number {
     const pixelsPerUnit = this.pixelsPerUnit()
-    const speed = this.walkSpeedOverride ?? walkSpeed(this.viewer.width)
+    const speed = this.walkSpeedOverride ?? walkSpeed(this.viewer.width, this.walkSpeedMultiplier)
     const stepLength = 2 * WALK_LEG_LENGTH * Math.sin(WALK_LEG_SWING) * pixelsPerUnit
     if (!(stepLength > 0.01)) return this.lastStepFrequency
     return clamp(speed / stepLength, WALK_MIN_STEP_HZ, WALK_MAX_STEP_HZ)
@@ -572,6 +645,11 @@ export class PetAnimator {
    * reserved for the 2 s click-look window, never for constant idle tracking.
    */
   private updateAutonomousIdle(now: number): void {
+    if (!this.idleMicroMotion) {
+      this.idleBodyTarget = IDLE_YAW
+      this.idleBodyTurnUntil = 0
+      return
+    }
     if (this.mode !== 'idle') {
       this.idleBodyTarget = IDLE_YAW
       this.idleBodyTurnUntil = 0
@@ -611,7 +689,7 @@ export class PetAnimator {
     const centerY = this.viewer.height / 2
     const cursorKnown = this.cursorX !== null && this.cursorY !== null
     const cursorTracking = cursorKnown && now < this.cursorLookUntil
-    if (now >= this.nextGlanceAt) {
+    if (this.idleMicroMotion && now >= this.nextGlanceAt) {
       this.glance = (Math.random() * 2 - 1) * 0.18
       this.glancePitch = (Math.random() * 2 - 1) * 0.16
       this.nextGlanceAt = now + 3500 + Math.random() * 3000
@@ -695,6 +773,7 @@ export class PetAnimator {
     const approach = 1 - Math.exp(-dt / 0.16)
     this.walkBlend += (((this.walking && !this.walkPosePaused) ? 1 : 0) - this.walkBlend) * approach
     this.dragBlend += ((this.dragging ? 1 : 0) - this.dragBlend) * (1 - Math.exp(-dt / 0.085))
+    this.sleepBlend += ((this.mode === 'sleep' ? 1 : 0) - this.sleepBlend) * (1 - Math.exp(-dt / 0.3))
     this.torchBlend += ((this.torchOn ? 1 : 0) - this.torchBlend) * (1 - Math.exp(-dt / 0.18))
     const stretchElapsed = now - this.stretchStartedAt
     const stretchWeight = now < this.stretchUntil
@@ -801,6 +880,11 @@ export class PetAnimator {
     skin.leftArm.rotation.x += 0.04 * petEnvelope
     skin.rightLeg.rotation.x *= 1 - stretchWeight
     skin.leftLeg.rotation.x *= 1 - stretchWeight
+    // A small curled seated pose keeps the head visible and feet near the floor.
+    skin.rightArm.rotation.x = blend(skin.rightArm.rotation.x, -0.38, this.sleepBlend)
+    skin.leftArm.rotation.x = blend(skin.leftArm.rotation.x, -0.38, this.sleepBlend)
+    skin.rightLeg.rotation.x = blend(skin.rightLeg.rotation.x, -0.72, this.sleepBlend)
+    skin.leftLeg.rotation.x = blend(skin.leftLeg.rotation.x, -0.72, this.sleepBlend)
     // Idle 360° turn: a quiet alternating foot shuffle and a slight weight lean,
     // with no footsteps triggered (those belong to walking only).
     if (cursorTracking && this.bodyTurning && this.bodyTurnAmount > 0.01) {
@@ -811,6 +895,20 @@ export class PetAnimator {
       skin.leftArm.rotation.x += shuffle * 0.6
     }
 
+    // Main moves the window during walks and drags. Follow that real motion
+    // with a delayed lean; the spring carries through when movement stops.
+    const windowX = window.screenX
+    if (this.lastWindowX !== null && dt > 0) {
+      const speed = clamp((windowX - this.lastWindowX) / dt, -900, 900)
+      const targetSpeed = this.walking || this.dragging ? speed : 0
+      this.windowVelocityX += (targetSpeed - this.windowVelocityX) *
+        (1 - Math.exp(-dt / 0.09))
+    }
+    this.lastWindowX = windowX
+    const inertiaLean = this.leanSpring.step(
+      clamp(-this.windowVelocityX * 0.0012, -0.08, 0.08), dt)
+    const elasticBob = this.bobSpring.step(0, dt)
+    const elasticSquash = this.squashSpring.step(0, dt)
     const breath = Math.sin(now * 0.0019)
     const landingElapsed = now - this.landingStartedAt
     const landingProgress = this.landingStartedAt > 0
@@ -822,14 +920,16 @@ export class PetAnimator {
     const landingSquash = landingProgress < 1
       ? Math.exp(-landingProgress * 18) * 0.07
       : 0
-    skin.body.scale.set(1 + 0.006 * breath + landingSquash * 0.35,
-      1 + 0.012 * breath - landingSquash,
-      1 + 0.006 * breath)
+    skin.body.scale.set(1 + 0.006 * breath + landingSquash * 0.35 -
+        elasticSquash * 0.45,
+      1 + 0.012 * breath - landingSquash + elasticSquash,
+      1 + 0.006 * breath - elasticSquash * 0.25)
     this.viewer.playerWrapper.position.y = 0.05 * breath +
       0.25 * Math.abs(Math.sin(this.gaitPhase)) * activeWalk +
-      1.35 * landingBounce - 0.45 * this.dragBlend - 0.1 * petEnvelope
+      1.35 * landingBounce - 0.45 * this.dragBlend - 0.1 * petEnvelope + elasticBob -
+      2.0 * this.sleepBlend
 
-    if (now >= this.nextGlanceAt) {
+    if (this.idleMicroMotion && now >= this.nextGlanceAt) {
       this.glance = (Math.random() * 2 - 1) * 0.18
       // Occasional natural up/down glance, not only left/right.
       this.glancePitch = (Math.random() * 2 - 1) * 0.16
@@ -864,8 +964,8 @@ export class PetAnimator {
     const safePitch = clamp(this.headPitch - 0.27 * stretchWeight - 0.1 * eatWeight,
       -HEAD_PITCH_LIMIT, HEAD_PITCH_LIMIT)
     skin.head.rotation.y = clamp(this.headYaw + 0.1 * eatWeight, -MAX_GAZE_YAW, MAX_GAZE_YAW)
-    skin.head.rotation.x = safePitch
-    skin.head.rotation.z = (this.mode === 'pet' ? petSway : 0) + 0.025 * stride
+    skin.head.rotation.x = blend(safePitch, 0.28, this.sleepBlend)
+    skin.head.rotation.z = (this.mode === 'pet' ? petSway : 0) + 0.025 * stride - inertiaLean * 0.35
     skin.head.position.y = 0.07 * breath + 0.16 * petEnvelope + 0.08 * stretchWeight +
       HEAD_PITCH_LIFT * Math.abs(Math.sin(safePitch))
     // Body follows the head a little instead of staying a rigid block; this
@@ -874,11 +974,11 @@ export class PetAnimator {
       ? -Math.sign(bodyDelta) * 0.035 * this.bodyTurnAmount
       : 0
     skin.body.rotation.x = -0.2 * stretchWeight + 0.06 * this.dragBlend +
-      0.03 * activeWalk + 0.08 * safePitch
+      0.03 * activeWalk + 0.08 * safePitch + 0.22 * this.sleepBlend
     skin.body.rotation.z = 0.025 * Math.sin(now * 0.004) * stretchWeight +
-      0.018 * petEnvelope + turnLean
+      0.018 * petEnvelope + turnLean + inertiaLean * 0.55
     this.viewer.playerWrapper.rotation.z = 0.012 * Math.sin(this.gaitPhase) * activeWalk -
-      0.012 * petEnvelope
+      0.012 * petEnvelope + inertiaLean
 
     this.updateBlink(now)
     this.emitFrame(now)
@@ -894,6 +994,6 @@ export class PetAnimator {
       this.blinkUntil = now + 120
       this.secondBlinkAt = 0
     }
-    this.blinkTexture?.setClosed(now < this.blinkUntil || now < this.petEyesUntil)
+    this.blinkTexture?.setClosed(this.mode === 'sleep' || now < this.blinkUntil || now < this.petEyesUntil)
   }
 }

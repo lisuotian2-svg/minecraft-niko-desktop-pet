@@ -77,18 +77,18 @@ describe('left-button gesture timing', () => {
     expect(gesture.phase).toBe('idle')
   })
 
-  it('does not begin dragging for movement before 250 ms', () => {
+  it('filters jitter in the first 50 ms', () => {
     const gesture = new GestureMachine()
     gesture.press(0, 0, 0)
-    expect(gesture.move(249, 8, 0)).toEqual([])
-    expect(gesture.release(249)).toEqual(['click', 'release'])
+    expect(gesture.move(49, 8, 0)).toEqual([])
+    expect(gesture.release(49)).toEqual(['click', 'release'])
   })
 
-  it('starts drag only for movement in the 250-1500 ms window', () => {
+  it('starts a drag after 50 ms and five pixels of movement', () => {
     const gesture = new GestureMachine()
     gesture.press(0, 0, 0)
-    expect(gesture.move(250, 5, 0)).toEqual([])
-    expect(gesture.move(300, 6, 0)).toEqual(['dragStart'])
+    expect(gesture.move(50, 5, 0)).toEqual([])
+    expect(gesture.move(60, 6, 0)).toEqual(['dragStart'])
     expect(gesture.tick(4000)).toEqual([])
     expect(gesture.release(4000)).toEqual(['dragEnd', 'release'])
   })
@@ -133,9 +133,9 @@ describe('left-button gesture timing', () => {
   it('keeps the long press alive when early jitter returns inside the slop', () => {
     const gesture = new GestureMachine()
     gesture.press(0, 0, 0)
-    expect(gesture.move(100, 8, 0)).toEqual([])
-    expect(gesture.move(200, 2, 0)).toEqual([])
-    expect(gesture.tick(250)).toEqual([])
+    expect(gesture.move(10, 8, 0)).toEqual([])
+    expect(gesture.move(40, 2, 0)).toEqual([])
+    expect(gesture.tick(50)).toEqual([])
     expect(gesture.tick(1500)).toEqual(['toggleTorch'])
     expect(gesture.tick(2400)).toEqual(['gatherStart'])
     expect(gesture.tick(3000)).toEqual(['close'])
@@ -144,8 +144,8 @@ describe('left-button gesture timing', () => {
   it('turns early jitter into a drag at the gate if the pointer never returns', () => {
     const gesture = new GestureMachine()
     gesture.press(0, 0, 0)
-    expect(gesture.move(100, 8, 0)).toEqual([])
-    expect(gesture.tick(250)).toEqual(['dragStart'])
+    expect(gesture.move(10, 8, 0)).toEqual([])
+    expect(gesture.tick(50)).toEqual(['dragStart'])
     expect(gesture.tick(1500)).toEqual([])
     expect(gesture.release(1600)).toEqual(['dragEnd', 'release'])
   })
@@ -172,19 +172,27 @@ describe('left-button gesture timing', () => {
     expect(DEFAULT_GESTURE_TIMING.longPressMs).toBe(1500)
 
     gesture.press(1000, 0, 0)
-    expect(gesture.nextDeadline(1000)).toBe(1250)
-    gesture.move(1100, 8, 0)
-    expect(gesture.nextDeadline(1100)).toBe(1250)
-    expect(gesture.tick(1250)).toEqual(['dragStart'])
-    expect(gesture.nextDeadline(1250)).toBeNull()
+    expect(gesture.nextDeadline(1000)).toBe(1050)
+    gesture.move(1010, 8, 0)
+    expect(gesture.nextDeadline(1010)).toBe(1050)
+    expect(gesture.tick(1050)).toEqual(['dragStart'])
+    expect(gesture.nextDeadline(1050)).toBeNull()
 
     const held = new GestureMachine({ longPressMs: 1500 })
     held.press(1000, 0, 0)
-    held.move(1100, 2, 0)
-    expect(held.nextDeadline(1100)).toBe(1250)
+    held.move(1010, 2, 0)
+    expect(held.nextDeadline(1010)).toBe(1050)
     expect(held.nextDeadline(1300)).toBe(2500)
-    held.tick(1250)
-    expect(held.nextDeadline(1250)).toBe(2500)
+    held.tick(1050)
+    expect(held.nextDeadline(1050)).toBe(2500)
+  })
+
+  it('uses the latest movement when the cursor returns at the drag deadline', () => {
+    const gesture = new GestureMachine()
+    gesture.press(0, 0, 0)
+    expect(gesture.move(10, 12, 0)).toEqual([])
+    expect(gesture.move(50, 2, 0)).toEqual([])
+    expect(gesture.tick(1500)).toEqual(['toggleTorch'])
   })
 })
 

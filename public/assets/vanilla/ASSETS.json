@@ -1,7 +1,7 @@
-﻿{
+{
     "source":  "Minecraft Java 1.20.1-Fabric local install",
-    "index":  "C:\\Users\\zgy15\\AppData\\Roaming\\.minecraft\\assets\\indexes\\5.json",
-    "jar":  "C:\\Users\\zgy15\\AppData\\Roaming\\.minecraft\\versions\\1.20.1-Fabric 0.19.5\\1.20.1-Fabric 0.19.5.jar",
+    "index":  ".minecraft/assets/indexes/5.json",
+    "jar":  ".minecraft/versions/1.20.1-Fabric 0.19.5/1.20.1-Fabric 0.19.5.jar",
     "extractedAt":  "2026-10-20T23:17:47.4542518+08:00",
     "entries":  [
                     {

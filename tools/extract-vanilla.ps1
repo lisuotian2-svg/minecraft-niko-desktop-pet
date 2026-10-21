@@ -79,8 +79,10 @@ try {
 
 $manifest = [pscustomobject]@{
   source = "Minecraft Java 1.20.1-Fabric local install"
-  index = $indexPath
-  jar = $Jar
+  # Keep only paths inside the Minecraft install so the manifest can be committed
+  # without leaking the local user profile.
+  index = ".minecraft/assets/indexes/5.json"
+  jar = ".minecraft/versions/1.20.1-Fabric 0.19.5/1.20.1-Fabric 0.19.5.jar"
   extractedAt = (Get-Date).ToString("o")
   entries = $entries
 }

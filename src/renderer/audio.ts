@@ -29,18 +29,19 @@ export class PetAudio {
     if (this.settings.clickSounds) this.play('Ya2', 1)
   }
 
-  torch(on: boolean): void { this.play(on ? 'ignite' : 'extinguish', 0.55) }
+  torch(on: boolean): void { if (this.settings.actionSounds) this.play(on ? 'ignite' : 'extinguish', 0.55) }
 
   close(): void {
+    if (!this.settings.actionSounds) return
     this.play('portal', 0.45)
     this.play('travel', 0.35)
   }
 
-  stretch(): void { this.play('purreow', 0.12) }
+  stretch(): void { if (this.settings.actionSounds) this.play('purreow', 0.12) }
 
-  chew(): void { this.play(Math.random() < 0.5 ? 'eat1' : 'eat2', 0.5) }
+  chew(): void { if (this.settings.actionSounds) this.play(Math.random() < 0.5 ? 'eat1' : 'eat2', 0.5) }
 
-  burp(): void { this.play('burp', 0.55) }
+  burp(): void { if (this.settings.actionSounds) this.play('burp', 0.55) }
 
   /**
    * Procedural cat purr for petting feedback. The real Minecraft purr1-3
@@ -49,7 +50,7 @@ export class PetAudio {
    * Lead/platform add them to the IPC whitelist.
    */
   purr(): void {
-    if (this.settings.muted || this.settings.volume <= 0) return
+    if (!this.settings.actionSounds || this.settings.muted || this.settings.volume <= 0) return
     try {
       const context = this.context
       void context.resume().catch((error: unknown) => this.api.log(`audio resume error: ${String(error)}`))
@@ -105,6 +106,7 @@ export class PetAudio {
   }
 
   step(): void {
+    if (!this.settings.actionSounds) return
     if (STEP_NAMES.length === 0) return
     let index = Math.floor(Math.random() * STEP_NAMES.length)
     if (index === this.previousStep) index = (index + 1) % STEP_NAMES.length
