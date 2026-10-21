@@ -1,7 +1,7 @@
 # Codex 继续 Niko Pet 3D 的提示词（复制给 Codex）
 
 > 用途：在新开的 Codex 对话里接着当前项目做“指挥部”。当前代码在
-> `C:\Users\zgy15\Documents\deepseek-harness\default-workspace\niko-pet-3d`，
+> `<repo>`，
 > 不是工作区里旧的 PySide6 / 2D 桌宠。
 
 ## 可直接粘贴的提示词
@@ -12,10 +12,10 @@
 
 【项目定位】
 项目根目录固定为：
-C:\Users\zgy15\Documents\deepseek-harness\default-workspace\niko-pet-3d
+<repo>
 这是 Electron + Three.js + skinview3d 的 3D 桌宠，不是 PySide6/2D 版本。
 先执行并报告结果：
-  cd C:\Users\zgy15\Documents\deepseek-harness\default-workspace\niko-pet-3d
+  cd <repo>
   git log --oneline -6
   git status --short
   Get-ChildItem src\renderer
@@ -74,7 +74,7 @@ P0-4：便携 exe + NSIS + source zip + 干净 profile 验收。
 
 ```text
 你是 Niko Pet 3D 的 Codex 指挥官。项目根：
-C:\Users\zgy15\Documents\deepseek-harness\default-workspace\niko-pet-3d
+<repo>
 这是 Electron + Three.js + skinview3d 的 3D 桌宠，不是旧的 PySide6/2D 项目。
 先 cd 到该目录，确认 git log 有 994906c 或更新，读 docs/TEAM-HANDOFF.md、docs/COMMANDER-BRIEF.md、docs/streams/* 和 src/，再跑 direct build/tsc/vitest。
 你只做规划/评审/验收，不写实现；DeepSeek 四个工作流实现，Lead 集成。

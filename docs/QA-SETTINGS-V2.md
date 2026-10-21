@@ -192,7 +192,7 @@ Tests       2 failed | 32 passed (34)
 ## 8. 测试结果（直接二进制）
 
 ```powershell
-cd C:\Users\zgy15\Documents\deepseek-harness\default-workspace\niko-pet-3d
+cd <repo>
 
 cmd /c "node_modules\.bin\vitest.cmd run --reporter=verbose 2>&1"
 cmd /c "node_modules\.bin\tsc.cmd --noEmit -p tsconfig.json 2>&1"
@@ -252,7 +252,7 @@ cmd /c "node_modules\.bin\tsc.cmd --noEmit -p tsconfig.json 2>&1"
 ## 11. 复现
 
 ```powershell
-cd C:\Users\zgy15\Documents\deepseek-harness\default-workspace\niko-pet-3d
+cd <repo>
 cmd /c "node_modules\.bin\vitest.cmd run --reporter=verbose"
 cmd /c "node_modules\.bin\tsc.cmd --noEmit -p tsconfig.json"
 ```

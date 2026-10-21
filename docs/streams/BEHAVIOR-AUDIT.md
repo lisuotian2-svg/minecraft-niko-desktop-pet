@@ -3,7 +3,7 @@
 > 作者：behavior-dev（只读审计）
 > 日期：2026-10-21
 > 状态：审计完成，**未修改任何 src / tests / assets / package 文件**；本文件是唯一写入。
-> 项目根：`C:\Users\zgy15\Documents\deepseek-harness\default-workspace\niko-pet-3d`
+> 项目根：`<repo>`
 > 依据：`docs/TEAM-HANDOFF.md`、`docs/SKILLS.md`、`docs/PRD.md`、`docs/DECISIONS.md`、`docs/TECH-PLAN.md`、`M0-REPORT.md`、`M1-REPORT.md`、`src/renderer/animator.ts`、`viewer.ts`、`bread.ts`、`snacks.ts`、`pet.ts`、`gestures.ts`、`particles.ts`、`torch.ts`、`audio.ts`、`src/shared/*`、`src/main/pet-window.ts`、`src/main/ipc.ts`、`src/preload/index.ts`，以及 `artifacts/` 中现有的 M0/M1/M2 截图。
 > 说明：当前不存在 `docs/COMMANDER-BRIEF.md`；Codex 简报出现后，本文件中的路线/优先级需要与它对齐一次。
 > 验证基线（本次只读复跑）：`vitest run` **17/17 通过**；`tsc --noEmit -p tsconfig.json` **通过**。未启动可见 GUI，未重启用户实例，未跑 build（未改代码）。

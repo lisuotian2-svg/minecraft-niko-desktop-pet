@@ -1,7 +1,7 @@
 # HANDOFF — 给下一个智能体（Niko Pet 3D）
 
 > 交接时间：2026-10-21 14:40（Asia/Shanghai）
-> 项目根：`C:\Users\zgy15\Documents\deepseek-harness\default-workspace\niko-pet-3d`
+> 项目根：`<repo>`
 > Git：`79e92ae`（team checkpoint），工作区在该提交后应保持干净；先跑 `git status` 确认。
 > **不是**工作区里旧的 PySide6 / 2D 项目。进入目录后先确认 `src/renderer/animator.ts`、`pet.ts`、`sign.ts`、`src/main/peek.ts` 存在。
 
@@ -92,7 +92,7 @@
 
 ```text
 你是 Niko Pet 3D 的接手智能体。项目根：
-C:\Users\zgy15\Documents\deepseek-harness\default-workspace\niko-pet-3d
+<repo>
 这是 Electron + Three.js + skinview3d 3D 桌宠，不是旧的 PySide6/2D 项目。当前 Git HEAD 应为 79e92ae，工作区应干净。
 
 先读：

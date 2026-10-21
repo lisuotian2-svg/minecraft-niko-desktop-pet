@@ -13,7 +13,7 @@
 在 PowerShell 7 中从项目根目录执行：
 
 ```powershell
-cd 'C:\Users\zgy15\Documents\deepseek-harness\default-workspace\niko-pet-3d'
+cd '<repo>'
 $env:electron_config_cache = Join-Path (Get-Location) '.electron-cache'
 Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
 pnpm install

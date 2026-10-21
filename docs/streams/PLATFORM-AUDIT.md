@@ -1,6 +1,6 @@
 # PLATFORM-AUDIT — 平台/发布流只读审计
 
-> 审计对象：Niko Pet 3D（项目根 `C:\Users\zgy15\Documents\deepseek-harness\default-workspace\niko-pet-3d`）
+> 审计对象：Niko Pet 3D（项目根 `<repo>`）
 > 审计者：platform-dev（DeepSeek worker）
 > 日期：2026-10-21
 > 阶段：**只读审计**。本轮未编辑 `src/**`、`package.json`、资产、测试，未安装依赖，未启动第二个 GUI 实例，未重启用户正在运行的桌宠。唯一写入文件：本文件。
@@ -689,7 +689,7 @@ compression: maximum
   "productName": "Niko Pet 3D",
   "version": "0.1.0",
   "description": "Local Windows desktop pet: Niko, a 3D Minecraft skin character.",
-  "author": "zgy15",
+  "author": "<user>",
   "private": true,
   "main": "./out/main/index.js",
   "scripts": {

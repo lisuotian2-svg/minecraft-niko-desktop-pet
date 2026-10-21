@@ -1,7 +1,7 @@
 # TEAM-HANDOFF — Niko Pet 3D 当前进度与分工
 
 > 给所有 DeepSeek 工作对话和 Codex 指挥部的交接文档。最后更新：2026-10-21。
-> 项目根：`C:\Users\zgy15\Documents\deepseek-harness\default-workspace\niko-pet-3d`
+> 项目根：`<repo>`
 
 ## 1. 项目目标
 
@@ -78,7 +78,7 @@ Windows 本地自用 3D 桌宠：用户自己的 Minecraft 皮肤（64×64 Slim 
 ## 6. 构建、测试、启动
 
 ```powershell
-cd C:\Users\zgy15\Documents\deepseek-harness\default-workspace\niko-pet-3d
+cd <repo>
 
 # 推荐：绕过 pnpm 的 deps status 检查（本机 pnpm 有时会在无 TTY 下卡 install）
 cmd /c "node_modules\.bin\electron-vite.cmd build && node_modules\.bin\tsc.cmd --noEmit -p tsconfig.json"

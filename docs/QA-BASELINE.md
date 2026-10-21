@@ -33,7 +33,7 @@
 
 | 项 | 值 |
 |---|---|
-| 项目根 | `C:\Users\zgy15\Documents\deepseek-harness\default-workspace\niko-pet-3d` |
+| 项目根 | `<repo>` |
 | 系统 | Windows 11 x64（26200，按项目文档） |
 | 工具链 | Node 24 / pnpm 11 / PowerShell 7；Electron **44.7.0**（锁定） |
 | Git | `master` @ `0c8cb8c7848720577f2ab0b35e18667f79207b94`；Commander Brief 定义 M1 `0c8cb8c` 为**可回滚锚点**，当前 M2/M3 是**候选基线**，需 P0-0 验证后才能冻结；工作区含 M2/M3 未提交改动（`M src/main/*`、`M src/renderer/*`、`?? src/main/brightness.ts`、`?? src/renderer/{torch,bread,particles,snacks}.ts` 等） |
@@ -64,7 +64,7 @@
 所有命令均在项目根执行；**没有走 `pnpm build` / `pnpm test`**，避免 pnpm 的依赖状态检查触发安装。Electron 保持 44.7.0。
 
 ```powershell
-cd C:\Users\zgy15\Documents\deepseek-harness\default-workspace\niko-pet-3d
+cd <repo>
 
 # 1) 构建
 node_modules\.bin\electron-vite.cmd build
@@ -322,7 +322,7 @@ node_modules\.bin\vitest.cmd run --reporter=verbose
 ### 6.1 代码门禁（每轮必跑）
 
 ```powershell
-cd C:\Users\zgy15\Documents\deepseek-harness\default-workspace\niko-pet-3d
+cd <repo>
 Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
 
 node_modules\.bin\electron-vite.cmd build
@@ -356,7 +356,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\screenshot.ps1 -Ou
 ### 6.4 启动独立 QA 实例（需要用户确认；不要覆盖用户实例）
 
 ```powershell
-cmd /c 'set "ELECTRON_RUN_AS_NODE=" && cd /d "C:\Users\zgy15\Documents\deepseek-harness\default-workspace\niko-pet-3d" && start "" "C:\Users\zgy15\Documents\deepseek-harness\default-workspace\niko-pet-3d\node_modules\electron\dist\electron.exe" --no-sandbox --user-data-dir="C:\Users\zgy15\Documents\deepseek-harness\default-workspace\niko-pet-3d\.scratch-userdata-qa" --remote-debugging-port=9223 --debug-walk .'
+cmd /c 'set "ELECTRON_RUN_AS_NODE=" && cd /d "<repo>" && start "" "<repo>\node_modules\electron\dist\electron.exe" --no-sandbox --user-data-dir="<repo>\.scratch-userdata-qa" --remote-debugging-port=9223 --debug-walk .'
 ```
 
 - `--debug-walk` 会加 `?nikoDebug=1`，暴露 `window.__niko`。

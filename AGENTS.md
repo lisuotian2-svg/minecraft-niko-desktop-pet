@@ -3,7 +3,7 @@
 ## 环境
 
 - Windows 11 x64；PowerShell 7；Node 24；pnpm 11。
-- 项目根：`C:\Users\zgy15\Documents\deepseek-harness\default-workspace\niko-pet-3d`
+- 项目根：`<repo>`
 - 包管理器只用 **pnpm**，不要用 npm/yarn。若 `pnpm add` 报 store 不一致，加 `--store-dir .pnpm-store/v11`。
 - 这是本地自用项目，不要发布、不要上传、不要改全局配置、不要动 `%APPDATA%\.minecraft` 和 `~/.dsh`。
 - **Electron 已锁定 44.7.0**：本机 44.9.1 在 Windows 11 26200 上启动即挂起（`app.whenReady` 不触发）。不要升级、不要换 Electron 版本。
@@ -22,6 +22,7 @@
 8. 不要提交 `node_modules`、`release`、`artifacts`。
 9. 遇到不确定的产品选择，按 `PRD.md` 的推荐项实现，并在 `M0-REPORT.md` / `M1-REPORT.md` 记录。
 10. 不要修改 `public/assets/skin/niko.png`、`public/assets/whale/*.mp3`。
+11. 永久保持角色使用 **64×64 Minecraft Slim 双层皮肤模型**，保留像素外观、贴图 UV 和内外层结构；可以在此基础上加入 Minecraft 风格的高级骨骼、关节与次级动作，让角色更有生命感，但不能替换成不兼容的模型或破坏原有贴图。
 
 ## 常用命令
 

@@ -1,11 +1,37 @@
 {
   "name": "niko-pet-3d",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
+  "description": "Minecraft 猫耳女巫 Niko 的 Windows 11 3D 桌宠：Electron + Three.js + 64×64 Slim 双层皮肤",
   "main": "./out/main/index.js",
+  "author": "lisuotian2-svg",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lisuotian2-svg/minecraft-niko-desktop-pet.git"
+  },
+  "homepage": "https://github.com/lisuotian2-svg/minecraft-niko-desktop-pet#readme",
+  "bugs": {
+    "url": "https://github.com/lisuotian2-svg/minecraft-niko-desktop-pet/issues"
+  },
+  "keywords": [
+    "desktop-pet",
+    "electron",
+    "three.js",
+    "minecraft",
+    "skinview3d",
+    "windows",
+    "typescript"
+  ],
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=9"
+  },
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build && tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "preview": "electron-vite preview",
     "test": "vitest run"
   },
   "dependencies": {

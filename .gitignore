@@ -8,3 +8,11 @@ artifacts/
 
 .scratch*
 native/fullscreen-watcher/bin/
+native/**/obj/
+dist/
+coverage/
+*.tsbuildinfo
+.vite/
+Thumbs.db
+desktop.ini
+.DS_Store
