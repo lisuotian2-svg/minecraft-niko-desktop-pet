@@ -5,7 +5,7 @@
 - Windows 11 x64；PowerShell 7；Node 24；pnpm 11。
 - 项目根：`<repo>`
 - 包管理器只用 **pnpm**，不要用 npm/yarn。若 `pnpm add` 报 store 不一致，加 `--store-dir .pnpm-store/v11`。
-- 这是本地自用项目，不要发布、不要上传、不要改全局配置、不要动 `%APPDATA%\.minecraft` 和 `~/.dsh`。
+- 这是本地自用项目，默认不发布、不上传；**例外：2026-10-21 用户已明确授权把 v0.1.0 发布到 GitHub 公开仓库**（<https://github.com/lisuotian2-svg/minecraft-niko-desktop-pet>），之后再发布需重新确认。不要改全局配置、不要动 `%APPDATA%\.minecraft` 和 `~/.dsh`。
 - **Electron 已锁定 44.7.0**：本机 44.9.1 在 Windows 11 26200 上启动即挂起（`app.whenReady` 不触发）。不要升级、不要换 Electron 版本。
 - **不要尝试启动可见 GUI**（`pnpm dev` / Electron 窗口）来自我验收：本 Agent 上下文的窗口会被 Job/UI 限制卡住。你只需 `pnpm build`、`pnpm test`、类型检查和纯 Node 脚本验证；真实桌面验收由 Lead 用 scheduled task + CDP 完成。
 - 官方 44.7.0 runtime 已安装到 `node_modules/electron/dist`；DSH 自带 44.7.0 runtime 也验证过透明窗口、WebGL alpha、Slim 双层皮肤和压扁。

@@ -21,8 +21,8 @@
 
 ## 先定位正确项目
 
-项目根目录：`C:\Users\zgy15\Documents\deepseek-harness\default-workspace\niko-pet-3d`。
-这是 Electron + TypeScript + Three.js + skinview3d 的 **3D Niko**；默认工作区 `C:\Users\zgy15\Documents\ChatGPT\windows桌宠` 是旧 PySide6/2D 项目，不要在那边实现功能。
+项目根目录：`<repo>`。
+这是 Electron + TypeScript + Three.js + skinview3d 的 **3D Niko**；默认工作区 `C:\Users\<user>\Documents\ChatGPT\windows桌宠` 是旧 PySide6/2D 项目，不要在那边实现功能。
 
 先读本文件，然后读项目 AGENTS.md 和 docs/HANDOFF-TO-NEXT-AGENT.md；按任务需要再读 docs/TEAM-HANDOFF.md、PRD.md、TECH-PLAN.md、DECISIONS.md 及相关 streams 文档。
 
